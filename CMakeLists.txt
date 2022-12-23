@@ -17,5 +17,5 @@ project(sdlterm)
 
 subdirs(SDL_fox)
 
-add_executable(${PROJECT_NAME} src/sdlterm.c)
+add_executable(${PROJECT_NAME} src/main.cpp src/sdlterm.c)
 target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2 SDL_fox vterm)
