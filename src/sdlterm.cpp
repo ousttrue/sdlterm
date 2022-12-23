@@ -150,21 +150,38 @@ int TERM_GetRendererIndex(TERM_Config *cfg) {
 
 /*****************************************************************************/
 
-/*****************************************************************************/
-
 extern char *optarg;
 extern int optind;
 
 /*****************************************************************************/
+TERM_State::~TERM_State() {
+  kill(this->child, SIGKILL);
+  pid_t wpid;
+  int wstatus;
+  do {
+    wpid = waitpid(this->child, &wstatus, WUNTRACED | WCONTINUED);
+    if (wpid == -1)
+      break;
+  } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
+  this->child = wpid;
+  vterm_free(this->vterm);
+  FOX_CloseFont(this->font.bold);
+  FOX_CloseFont(this->font.regular);
+  SDL_FreeSurface(this->icon);
+  SDL_FreeCursor(this->pointer);
+  SDL_DestroyRenderer(this->renderer);
+  SDL_DestroyWindow(this->window);
+  FOX_Exit();
+  SDL_Quit();
+}
 
-int TERM_InitializeTerminal(TERM_State *state, TERM_Config *cfg,
-                            const char *title) {
+bool TERM_State::Initialize(TERM_Config *cfg, const char *title) {
   if (SDL_Init(SDL_INIT_VIDEO)) {
-    return -1;
+    return false;
   }
 
   if (FOX_Init() != FOX_INITIALIZED) {
-    return -1;
+    return false;
   }
 
   Uint32 wflags = TERM_GetWindowFlags(cfg);
@@ -175,66 +192,66 @@ int TERM_InitializeTerminal(TERM_State *state, TERM_Config *cfg,
     cfg->width = rect.w;
     cfg->height = rect.h;
   }
-  state->window =
+  this->window =
       SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                        cfg->width, cfg->height, wflags);
-  if (state->window == NULL) {
-    return -1;
+  if (this->window == NULL) {
+    return false;
   }
 
-  state->renderer =
-      SDL_CreateRenderer(state->window, TERM_GetRendererIndex(cfg), 0);
-  if (state->renderer == NULL) {
-    SDL_DestroyWindow(state->window);
-    return -1;
+  this->renderer =
+      SDL_CreateRenderer(this->window, TERM_GetRendererIndex(cfg), 0);
+  if (this->renderer == NULL) {
+    SDL_DestroyWindow(this->window);
+    return false;
   }
 
-  state->keys = SDL_GetKeyboardState(NULL);
+  this->keys = SDL_GetKeyboardState(NULL);
   SDL_StartTextInput();
 
-  state->font.regular =
-      FOX_OpenFont(state->renderer, cfg->fontpattern, cfg->fontsize);
-  if (state->font.regular == NULL)
-    return -1;
+  this->font.regular =
+      FOX_OpenFont(this->renderer, cfg->fontpattern, cfg->fontsize);
+  if (this->font.regular == NULL)
+    return false;
 
-  state->font.bold =
-      FOX_OpenFont(state->renderer, cfg->boldfontpattern, cfg->fontsize);
-  if (state->font.bold == NULL)
-    return -1;
+  this->font.bold =
+      FOX_OpenFont(this->renderer, cfg->boldfontpattern, cfg->fontsize);
+  if (this->font.bold == NULL)
+    return false;
 
-  state->pointer = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
-  if (state->pointer)
-    SDL_SetCursor(state->pointer);
+  this->pointer = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
+  if (this->pointer)
+    SDL_SetCursor(this->pointer);
 
-  state->icon = SDL_CreateRGBSurfaceFrom(pixels, 16, 16, 16, 16 * 2, 0x0f00,
-                                         0x00f0, 0x000f, 0xf000);
-  if (state->icon)
-    SDL_SetWindowIcon(state->window, state->icon);
+  this->icon = SDL_CreateRGBSurfaceFrom(pixels, 16, 16, 16, 16 * 2, 0x0f00,
+                                        0x00f0, 0x000f, 0xf000);
+  if (this->icon)
+    SDL_SetWindowIcon(this->window, this->icon);
 
-  state->font.metrics = FOX_QueryFontMetrics(state->font.regular);
-  state->ticks = SDL_GetTicks();
-  state->cursor.visible = true;
-  state->cursor.active = true;
-  state->cursor.ticks = 0;
-  state->bell.active = false;
-  state->bell.ticks = 0;
+  this->font.metrics = FOX_QueryFontMetrics(this->font.regular);
+  this->ticks = SDL_GetTicks();
+  this->cursor.visible = true;
+  this->cursor.active = true;
+  this->cursor.ticks = 0;
+  this->bell.active = false;
+  this->bell.ticks = 0;
 
-  state->mouse.rect = (SDL_Rect){0};
-  state->mouse.clicked = false;
+  this->mouse.rect = (SDL_Rect){0};
+  this->mouse.clicked = false;
 
-  state->vterm = vterm_new(cfg->rows, cfg->columns);
-  vterm_set_utf8(state->vterm, 1);
-  state->screen = vterm_obtain_screen(state->vterm);
-  vterm_screen_reset(state->screen, 1);
-  state->termstate = vterm_obtain_state(state->vterm);
-  vterm_screen_set_callbacks(state->screen, &callbacks, state);
+  this->vterm = vterm_new(cfg->rows, cfg->columns);
+  vterm_set_utf8(this->vterm, 1);
+  this->screen = vterm_obtain_screen(this->vterm);
+  vterm_screen_reset(this->screen, 1);
+  this->termstate = vterm_obtain_state(this->vterm);
+  vterm_screen_set_callbacks(this->screen, &callbacks, this);
 
-  state->cfg = *cfg;
+  this->cfg = *cfg;
 
-  state->child = forkpty(&state->childfd, NULL, NULL, NULL);
-  if (state->child < 0)
-    return -1;
-  else if (state->child == 0) {
+  this->child = forkpty(&this->childfd, NULL, NULL, NULL);
+  if (this->child < 0)
+    return false;
+  else if (this->child == 0) {
     execvp(cfg->exec, cfg->args);
     exit(0);
   } else {
@@ -246,32 +263,9 @@ int TERM_InitializeTerminal(TERM_State *state, TERM_Config *cfg,
     childState = 1;
   }
 
-  TERM_Resize(state, cfg->width, cfg->height);
-  state->dirty = true;
-  return 0;
-}
-
-/*****************************************************************************/
-
-void TERM_DeinitializeTerminal(TERM_State *state) {
-  pid_t wpid;
-  int wstatus;
-  kill(state->child, SIGKILL);
-  do {
-    wpid = waitpid(state->child, &wstatus, WUNTRACED | WCONTINUED);
-    if (wpid == -1)
-      break;
-  } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
-  state->child = wpid;
-  vterm_free(state->vterm);
-  FOX_CloseFont(state->font.bold);
-  FOX_CloseFont(state->font.regular);
-  SDL_FreeSurface(state->icon);
-  SDL_FreeCursor(state->pointer);
-  SDL_DestroyRenderer(state->renderer);
-  SDL_DestroyWindow(state->window);
-  FOX_Exit();
-  SDL_Quit();
+  TERM_Resize(this, cfg->width, cfg->height);
+  this->dirty = true;
+  return true;
 }
 
 /*****************************************************************************/
@@ -421,18 +415,19 @@ static void TERM_HandleChildEvents(TERM_State *state) {
   }
 }
 
-int TERM_HandleEvents(TERM_State *state) {
-  SDL_Event event;
-  int status = 0;
+bool TERM_State::HandleEvents() {
+  SDL_Delay(20);
 
+  SDL_Event event;
   if (childState == 0) {
     SDL_Event event;
     event.type = SDL_QUIT;
     SDL_PushEvent(&event);
   }
 
-  TERM_HandleChildEvents(state);
+  TERM_HandleChildEvents(this);
 
+  int status = 0;
   while (SDL_PollEvent(&event))
     switch (event.type) {
 
@@ -441,113 +436,113 @@ int TERM_HandleEvents(TERM_State *state) {
       break;
 
     case SDL_WINDOWEVENT:
-      TERM_HandleWindowEvent(state, &event);
+      TERM_HandleWindowEvent(this, &event);
       break;
 
     case SDL_KEYDOWN:
-      TERM_HandleKeyEvent(state, &event);
+      TERM_HandleKeyEvent(this, &event);
       break;
 
     case SDL_TEXTINPUT:
-      write(state->childfd, event.edit.text, SDL_strlen(event.edit.text));
+      write(this->childfd, event.edit.text, SDL_strlen(event.edit.text));
       break;
 
     case SDL_MOUSEMOTION:
-      if (state->mouse.clicked) {
-        state->mouse.rect.w = event.motion.x - state->mouse.rect.x;
-        state->mouse.rect.h = event.motion.y - state->mouse.rect.y;
+      if (this->mouse.clicked) {
+        this->mouse.rect.w = event.motion.x - this->mouse.rect.x;
+        this->mouse.rect.h = event.motion.y - this->mouse.rect.y;
       }
       break;
 
     case SDL_MOUSEBUTTONDOWN:
-      if (state->mouse.clicked) {
+      if (this->mouse.clicked) {
 
       } else if (event.button.button == SDL_BUTTON_LEFT) {
-        state->mouse.clicked = true;
-        SDL_GetMouseState(&state->mouse.rect.x, &state->mouse.rect.y);
-        state->mouse.rect.w = 0;
-        state->mouse.rect.h = 0;
+        this->mouse.clicked = true;
+        SDL_GetMouseState(&this->mouse.rect.x, &this->mouse.rect.y);
+        this->mouse.rect.w = 0;
+        this->mouse.rect.h = 0;
       }
       break;
 
     case SDL_MOUSEBUTTONUP:
       if (event.button.button == SDL_BUTTON_RIGHT) {
         char *clipboard = SDL_GetClipboardText();
-        write(state->childfd, clipboard, SDL_strlen(clipboard));
+        write(this->childfd, clipboard, SDL_strlen(clipboard));
         SDL_free(clipboard);
       } else if (event.button.button == SDL_BUTTON_LEFT) {
         VTermRect rect = {
-            .start_row = state->mouse.rect.y / state->font.metrics->height,
-            .end_row = (state->mouse.rect.y + state->mouse.rect.h) /
-                       state->font.metrics->height,
-            .start_col = state->mouse.rect.x / state->font.metrics->max_advance,
-            .end_col = (state->mouse.rect.x + state->mouse.rect.w) /
-                       state->font.metrics->max_advance,
+            .start_row = this->mouse.rect.y / this->font.metrics->height,
+            .end_row = (this->mouse.rect.y + this->mouse.rect.h) /
+                       this->font.metrics->height,
+            .start_col = this->mouse.rect.x / this->font.metrics->max_advance,
+            .end_col = (this->mouse.rect.x + this->mouse.rect.w) /
+                       this->font.metrics->max_advance,
         };
         if (rect.start_col > rect.end_col)
           swap(&rect.start_col, &rect.end_col);
         if (rect.start_row > rect.end_row)
           swap(&rect.start_row, &rect.end_row);
-        size_t n = vterm_screen_get_text(state->screen, clipboardbuffer,
+        size_t n = vterm_screen_get_text(this->screen, clipboardbuffer,
                                          sizeof(clipboardbuffer), rect);
         if (n >= sizeof(clipboardbuffer))
           n = sizeof(clipboardbuffer) - 1;
         clipboardbuffer[n] = '\0';
         SDL_SetClipboardText(clipboardbuffer);
-        state->mouse.clicked = false;
+        this->mouse.clicked = false;
       }
       break;
 
     case SDL_MOUSEWHEEL: {
-      int size = state->cfg.fontsize;
+      int size = this->cfg.fontsize;
       size += event.wheel.y;
-      FOX_CloseFont(state->font.regular);
-      FOX_CloseFont(state->font.bold);
-      state->font.regular =
-          FOX_OpenFont(state->renderer, state->cfg.fontpattern, size);
-      if (state->font.regular == NULL)
+      FOX_CloseFont(this->font.regular);
+      FOX_CloseFont(this->font.bold);
+      this->font.regular =
+          FOX_OpenFont(this->renderer, this->cfg.fontpattern, size);
+      if (this->font.regular == NULL)
         return -1;
 
-      state->font.bold =
-          FOX_OpenFont(state->renderer, state->cfg.boldfontpattern, size);
-      if (state->font.bold == NULL)
+      this->font.bold =
+          FOX_OpenFont(this->renderer, this->cfg.boldfontpattern, size);
+      if (this->font.bold == NULL)
         return -1;
-      state->font.metrics = FOX_QueryFontMetrics(state->font.regular);
-      TERM_Resize(state, state->cfg.width, state->cfg.height);
-      state->cfg.fontsize = size;
+      this->font.metrics = FOX_QueryFontMetrics(this->font.regular);
+      TERM_Resize(this, this->cfg.width, this->cfg.height);
+      this->cfg.fontsize = size;
       break;
     }
     }
 
-  return status;
+  return status == 0;
 }
 
 /*****************************************************************************/
 
-void TERM_Update(TERM_State *state) {
-  state->ticks = SDL_GetTicks();
+void TERM_State::Update() {
+  this->ticks = SDL_GetTicks();
 
-  if (state->dirty) {
-    SDL_SetRenderDrawColor(state->renderer, 0, 0, 0, 255);
-    SDL_RenderClear(state->renderer);
-    TERM_RenderScreen(state);
+  if (this->dirty) {
+    SDL_SetRenderDrawColor(this->renderer, 0, 0, 0, 255);
+    SDL_RenderClear(this->renderer);
+    TERM_RenderScreen(this);
   }
 
-  if (state->ticks > (state->cursor.ticks + 250)) {
-    state->cursor.ticks = state->ticks;
-    state->cursor.visible = !state->cursor.visible;
-    state->dirty = true;
+  if (this->ticks > (this->cursor.ticks + 250)) {
+    this->cursor.ticks = this->ticks;
+    this->cursor.visible = !this->cursor.visible;
+    this->dirty = true;
   }
 
-  if (state->bell.active && (state->ticks > (state->bell.ticks + 250))) {
-    state->bell.active = false;
+  if (this->bell.active && (this->ticks > (this->bell.ticks + 250))) {
+    this->bell.active = false;
   }
 
-  if (state->mouse.clicked) {
-    SDL_RenderDrawRect(state->renderer, &state->mouse.rect);
+  if (this->mouse.clicked) {
+    SDL_RenderDrawRect(this->renderer, &this->mouse.rect);
   }
 
-  SDL_RenderPresent(state->renderer);
+  SDL_RenderPresent(this->renderer);
 }
 
 /*****************************************************************************/

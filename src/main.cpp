@@ -117,15 +117,13 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  if (TERM_InitializeTerminal(&state, &cfg, PROGNAME)) {
+  if (!state.Initialize(&cfg, PROGNAME)) {
     return 2;
   }
 
-  while (!TERM_HandleEvents(&state)) {
-    TERM_Update(&state);
-    SDL_Delay(20);
+  while (state.HandleEvents()) {
+    state.Update();
   }
 
-  TERM_DeinitializeTerminal(&state);
   return 0;
 }

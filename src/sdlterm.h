@@ -3,7 +3,7 @@
 #include <SDL_fox.h>
 #include <vterm.h>
 
-typedef struct {
+struct TERM_Config {
   const char *exec;
   char **args;
   const char *fontpattern;
@@ -16,9 +16,9 @@ typedef struct {
   int height;
   int rows;
   int columns;
-} TERM_Config;
+};
 
-typedef struct {
+struct TERM_State {
   SDL_Window *window;
   SDL_Renderer *renderer;
   SDL_Cursor *pointer;
@@ -51,9 +51,9 @@ typedef struct {
   pid_t child;
   int childfd;
   TERM_Config cfg;
-} TERM_State;
 
-int TERM_InitializeTerminal(TERM_State *state, TERM_Config *cfg, const char *title);
-int TERM_HandleEvents(TERM_State *state);
-void TERM_Update(TERM_State *state);
-void TERM_DeinitializeTerminal(TERM_State *state);
+  ~TERM_State();
+  bool Initialize(TERM_Config *cfg, const char *title);
+  bool HandleEvents();
+  void Update();
+};
