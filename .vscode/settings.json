@@ -1,0 +1,16 @@
+{
+    "cmake.generator": "Ninja",
+    "cmake.configureSettings": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "1",
+        // ついで。こうすると build/Debug/bin に生成物が集まるので便利
+        "CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG": "${workspaceFolder}/build/Debug/lib",
+        "CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG": "${workspaceFolder}/build/Debug/lib",
+        "CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG": "${workspaceFolder}/build/Debug/bin",
+        "CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE": "${workspaceFolder}/build/Release/lib",
+        "CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE": "${workspaceFolder}/build/Release/lib",
+        "CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE": "${workspaceFolder}/build/Release/bin",
+    },
+    "clangd.arguments": [
+        "--compile-commands-dir=${workspaceFolder}/build"
+    ],
+}
