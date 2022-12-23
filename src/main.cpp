@@ -1,6 +1,4 @@
-extern "C" {
 #include "sdlterm.h"
-}
 #include <unistd.h>
 
 #define PROGNAME "sdlterm version 0.1"
@@ -39,7 +37,7 @@ static void TERM_ListRenderBackends(void) {
   }
 }
 
-static int TERM_ParseArgs(TERM_Config *cfg, int argc, char **argv) {
+static int ParseArgs(TERM_Config *cfg, int argc, char **argv) {
   int option;
   int status = 0;
 
@@ -115,10 +113,14 @@ int main(int argc, char *argv[]) {
       .rows = 0,
       .columns = 0};
 
-  if (TERM_ParseArgs(&cfg, argc, argv))
-    return -1;
-  if (TERM_InitializeTerminal(&state, &cfg, PROGNAME))
-    return -1;
+  if (ParseArgs(&cfg, argc, argv)) {
+    return 1;
+  }
+
+  if (TERM_InitializeTerminal(&state, &cfg, PROGNAME)) {
+    return 2;
+  }
+
   while (!TERM_HandleEvents(&state)) {
     TERM_Update(&state);
     SDL_Delay(20);

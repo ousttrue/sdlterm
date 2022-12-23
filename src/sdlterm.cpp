@@ -98,10 +98,12 @@ int sb_pushline(int cols, const VTermScreenCell *cells, void *user) {
 }
 int sb_popline(int cols, VTermScreenCell *cells, void *user) { return 1; }
 
-VTermScreenCallbacks callbacks = {.movecursor = movecursor,
-                                  .sb_pushline = sb_pushline,
-                                  .bell = bell,
-                                  .damage = damage};
+VTermScreenCallbacks callbacks = {
+    .damage = damage,
+    .movecursor = movecursor,
+    .bell = bell,
+    .sb_pushline = sb_pushline,
+};
 
 /*****************************************************************************/
 
@@ -155,7 +157,8 @@ extern int optind;
 
 /*****************************************************************************/
 
-int TERM_InitializeTerminal(TERM_State *state, TERM_Config *cfg, const char *title) {
+int TERM_InitializeTerminal(TERM_State *state, TERM_Config *cfg,
+                            const char *title) {
   if (SDL_Init(SDL_INIT_VIDEO)) {
     return -1;
   }
@@ -474,12 +477,13 @@ int TERM_HandleEvents(TERM_State *state) {
         SDL_free(clipboard);
       } else if (event.button.button == SDL_BUTTON_LEFT) {
         VTermRect rect = {
-            .start_col = state->mouse.rect.x / state->font.metrics->max_advance,
             .start_row = state->mouse.rect.y / state->font.metrics->height,
+            .end_row = (state->mouse.rect.y + state->mouse.rect.h) /
+                       state->font.metrics->height,
+            .start_col = state->mouse.rect.x / state->font.metrics->max_advance,
             .end_col = (state->mouse.rect.x + state->mouse.rect.w) /
                        state->font.metrics->max_advance,
-            .end_row = (state->mouse.rect.y + state->mouse.rect.h) /
-                       state->font.metrics->height};
+        };
         if (rect.start_col > rect.end_col)
           swap(&rect.start_col, &rect.end_col);
         if (rect.start_row > rect.end_row)
