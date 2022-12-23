@@ -1,7 +1,6 @@
 #pragma once
 #include <SDL.h>
 #include <SDL_fox.h>
-#include <vterm.h>
 
 struct TERM_Config {
   const char *exec;
@@ -29,9 +28,7 @@ struct TERM_State {
     FOX_Font *regular;
     FOX_Font *bold;
   } font;
-  VTerm *vterm;
-  VTermScreen *screen;
-  VTermState *termstate;
+  class VTermApp *vterm_ = nullptr;
   struct {
     SDL_Point position;
     bool visible;

@@ -9,6 +9,8 @@
  *****************************************************************************/
 
 #include "sdlterm.h"
+#include "vtermapp.h"
+#include <cstddef>
 #include <pty.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -16,6 +18,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <vterm.h>
 
 /*****************************************************************************/
 
@@ -68,45 +71,6 @@ static void swap(int *a, int *b);
 
 /*****************************************************************************/
 
-int damage(VTermRect rect, void *user) {
-  // printf("damage: [%d, %d, %d, %d]\n", rect.start_col,
-  //			rect.start_row, rect.end_col, rect.end_row);
-  return 1;
-}
-int moverect(VTermRect dest, VTermRect src, void *user) { return 1; }
-int movecursor(VTermPos pos, VTermPos oldpos, int visible, void *user) {
-  TERM_State *state = (TERM_State *)user;
-  state->cursor.position.x = pos.col;
-  state->cursor.position.y = pos.row;
-  if (visible == 0) {
-    // Works great for 'top' but not for 'nano'. Nano should have a cursor!
-    // state->cursor.active = false;
-  } else
-    state->cursor.active = true;
-  return 1;
-}
-int settermprop(VTermProp prop, VTermValue *val, void *user) { return 1; }
-int bell(void *user) {
-  TERM_State *state = (TERM_State *)user;
-  state->bell.active = true;
-  state->bell.ticks = state->ticks;
-  return 1;
-}
-
-int sb_pushline(int cols, const VTermScreenCell *cells, void *user) {
-  return 1;
-}
-int sb_popline(int cols, VTermScreenCell *cells, void *user) { return 1; }
-
-VTermScreenCallbacks callbacks = {
-    .damage = damage,
-    .movecursor = movecursor,
-    .bell = bell,
-    .sb_pushline = sb_pushline,
-};
-
-/*****************************************************************************/
-
 Uint32 TERM_GetWindowFlags(TERM_Config *cfg) {
   Uint32 flags = 0;
 
@@ -155,6 +119,8 @@ extern int optind;
 
 /*****************************************************************************/
 TERM_State::~TERM_State() {
+  delete vterm_;
+
   kill(this->child, SIGKILL);
   pid_t wpid;
   int wstatus;
@@ -164,7 +130,6 @@ TERM_State::~TERM_State() {
       break;
   } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
   this->child = wpid;
-  vterm_free(this->vterm);
   FOX_CloseFont(this->font.bold);
   FOX_CloseFont(this->font.regular);
   SDL_FreeSurface(this->icon);
@@ -239,12 +204,23 @@ bool TERM_State::Initialize(TERM_Config *cfg, const char *title) {
   this->mouse.rect = (SDL_Rect){0};
   this->mouse.clicked = false;
 
-  this->vterm = vterm_new(cfg->rows, cfg->columns);
-  vterm_set_utf8(this->vterm, 1);
-  this->screen = vterm_obtain_screen(this->vterm);
-  vterm_screen_reset(this->screen, 1);
-  this->termstate = vterm_obtain_state(this->vterm);
-  vterm_screen_set_callbacks(this->screen, &callbacks, this);
+  this->vterm_ = new VTermApp();
+  this->vterm_->Initialize(cfg->rows, cfg->columns);
+
+  this->vterm_->BellCallback = [state = this]() {
+    state->bell.active = true;
+    state->bell.ticks = state->ticks;
+  };
+  this->vterm_->MoveCursorCallback = [state = this](int row, int col,
+                                                    bool visible) {
+    state->cursor.position.x = col;
+    state->cursor.position.y = row;
+    if (!visible) {
+      // Works great for 'top' but not for 'nano'. Nano should have a cursor!
+      // state->cursor.active = false;
+    } else
+      state->cursor.active = true;
+  };
 
   this->cfg = *cfg;
 
@@ -408,7 +384,7 @@ static void TERM_HandleChildEvents(TERM_State *state) {
     char line[256];
     int n;
     if ((n = read(state->childfd, line, sizeof(line))) > 0) {
-      vterm_input_write(state->vterm, line, n);
+      state->vterm_->Write(line, n);
       state->dirty = true;
       // vterm_screen_flush_damage(state->screen);
     }
@@ -483,8 +459,10 @@ bool TERM_State::HandleEvents() {
           swap(&rect.start_col, &rect.end_col);
         if (rect.start_row > rect.end_row)
           swap(&rect.start_row, &rect.end_row);
-        size_t n = vterm_screen_get_text(this->screen, clipboardbuffer,
-                                         sizeof(clipboardbuffer), rect);
+
+        size_t n =
+            vterm_->GetText(clipboardbuffer, sizeof(clipboardbuffer), rect);
+
         if (n >= sizeof(clipboardbuffer))
           n = sizeof(clipboardbuffer) - 1;
         clipboardbuffer[n] = '\0';
@@ -578,20 +556,19 @@ void TERM_RenderScreen(TERM_State *state) {
 
 void TERM_RenderCell(TERM_State *state, int x, int y) {
   FOX_Font *font = state->font.regular;
-  VTermScreenCell cell;
   VTermPos pos = {.row = y, .col = x};
   SDL_Point cursor = {x * state->font.metrics->max_advance,
                       y * state->font.metrics->height};
 
-  vterm_screen_get_cell(state->screen, pos, &cell);
-  Uint32 ch = cell.chars[0];
+  auto cell = state->vterm_->GetCell(pos);
+  Uint32 ch = cell->chars[0];
   if (ch == 0)
     return;
 
-  vterm_state_convert_color_to_rgb(state->termstate, &cell.fg);
-  vterm_state_convert_color_to_rgb(state->termstate, &cell.bg);
-  SDL_Color color = {cell.fg.rgb.red, cell.fg.rgb.green, cell.fg.rgb.blue, 255};
-  if (cell.attrs.reverse) {
+  state->vterm_->UpdateCell(cell);
+  SDL_Color color = {cell->fg.rgb.red, cell->fg.rgb.green, cell->fg.rgb.blue,
+                     255};
+  if (cell->attrs.reverse) {
     SDL_Rect rect = {cursor.x, cursor.y + 4, state->font.metrics->max_advance,
                      state->font.metrics->height};
     SDL_SetRenderDrawColor(state->renderer, color.r, color.g, color.b, color.a);
@@ -601,9 +578,9 @@ void TERM_RenderCell(TERM_State *state, int x, int y) {
     SDL_RenderFillRect(state->renderer, &rect);
   }
 
-  if (cell.attrs.bold)
+  if (cell->attrs.bold)
     font = state->font.bold;
-  else if (cell.attrs.italic)
+  else if (cell->attrs.italic)
     ;
 
   SDL_SetRenderDrawColor(state->renderer, color.r, color.g, color.b, color.a);
@@ -620,7 +597,7 @@ void TERM_Resize(TERM_State *state, int width, int height) {
   if (rows != state->cfg.rows || cols != state->cfg.columns) {
     state->cfg.rows = rows;
     state->cfg.columns = cols;
-    vterm_set_size(state->vterm, state->cfg.rows, state->cfg.columns);
+    state->vterm_->Resize(state->cfg.rows, state->cfg.columns);
 
     struct winsize ws = {0};
     ws.ws_col = state->cfg.columns;
