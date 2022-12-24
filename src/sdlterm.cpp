@@ -15,7 +15,6 @@
 #include <SDL_render.h>
 #include <SDL_video.h>
 #include <iostream>
-#include <strings.h>
 #include <vterm.h>
 
 #define lengthof(f) (sizeof(f) / sizeof(f[0]))
@@ -65,8 +64,8 @@ static Uint32 TERM_GetWindowFlags(TERM_Config *cfg) {
 
   for (int i = 0; i < cfg->nWindowFlags; i++) {
     for (int k = 0; k < lengthof(values); k++) {
-#ifdef MSC_VER      
-      if (stricmp(cfg->windowflags[i], names[k]) == 0) 
+#ifdef _MSC_VER      
+      if (_stricmp(cfg->windowflags[i], names[k]) == 0) 
 #else
       if (strcasecmp(cfg->windowflags[i], names[k]) == 0) 
 #endif
