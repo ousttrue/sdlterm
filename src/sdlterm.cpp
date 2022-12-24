@@ -63,8 +63,6 @@ static Uint16 pixels[16 * 16] = {
 
 static Uint32 TERM_GetWindowFlags(TERM_Config *cfg);
 static int TERM_GetRendererIndex(TERM_Config *cfg);
-static void TERM_RenderScreen(TERM_State *state);
-static void TERM_RenderCell(TERM_State *state, int x, int y);
 static void TERM_Resize(TERM_State *state, int width, int height);
 static void TERM_SignalHandler(int signum);
 static void swap(int *a, int *b);
@@ -503,7 +501,7 @@ void TERM_State::Update() {
   if (this->dirty) {
     SDL_SetRenderDrawColor(this->renderer, 0, 0, 0, 255);
     SDL_RenderClear(this->renderer);
-    TERM_RenderScreen(this);
+    RenderScreen();
   }
 
   if (this->ticks > (this->cursor.ticks + 250)) {
@@ -525,65 +523,65 @@ void TERM_State::Update() {
 
 /*****************************************************************************/
 
-static void TERM_RenderCursor(TERM_State *state) {
-  if (state->cursor.active && state->cursor.visible) {
-    SDL_Rect rect = {state->cursor.position.x *
-                         state->font.metrics->max_advance,
-                     4 + state->cursor.position.y * state->font.metrics->height,
-                     4, state->font.metrics->height};
-    SDL_RenderFillRect(state->renderer, &rect);
+void TERM_State::RenderCursor() {
+  if (this->cursor.active && this->cursor.visible) {
+    SDL_Rect rect = {this->cursor.position.x *
+                         this->font.metrics->max_advance,
+                     4 + this->cursor.position.y * this->font.metrics->height,
+                     4, this->font.metrics->height};
+    SDL_RenderFillRect(this->renderer, &rect);
   }
 }
 
-void TERM_RenderScreen(TERM_State *state) {
-  SDL_SetRenderDrawColor(state->renderer, 255, 255, 255, 255);
-  for (unsigned y = 0; y < state->cfg.rows; y++) {
-    for (unsigned x = 0; x < state->cfg.columns; x++) {
-      TERM_RenderCell(state, x, y);
+void TERM_State::RenderScreen() {
+  SDL_SetRenderDrawColor(this->renderer, 255, 255, 255, 255);
+  for (unsigned y = 0; y < this->cfg.rows; y++) {
+    for (unsigned x = 0; x < this->cfg.columns; x++) {
+      this->RenderCell(x, y);
     }
   }
 
-  TERM_RenderCursor(state);
-  state->dirty = false;
+  RenderCursor();
+  this->dirty = false;
 
-  if (state->bell.active) {
-    SDL_Rect rect = {0, 0, state->cfg.width, state->cfg.height};
-    SDL_RenderDrawRect(state->renderer, &rect);
+  if (this->bell.active) {
+    SDL_Rect rect = {0, 0, this->cfg.width, this->cfg.height};
+    SDL_RenderDrawRect(this->renderer, &rect);
   }
 }
 
 /*****************************************************************************/
 
-void TERM_RenderCell(TERM_State *state, int x, int y) {
-  FOX_Font *font = state->font.regular;
+void TERM_State::RenderCell(int x, int y) {
+  FOX_Font *font = this->font.regular;
   VTermPos pos = {.row = y, .col = x};
-  SDL_Point cursor = {x * state->font.metrics->max_advance,
-                      y * state->font.metrics->height};
+  SDL_Point cursor = {x * this->font.metrics->max_advance,
+                      y * this->font.metrics->height};
 
-  auto cell = state->vterm_->GetCell(pos);
+  auto cell = this->vterm_->GetCell(pos);
   Uint32 ch = cell->chars[0];
   if (ch == 0)
     return;
 
-  state->vterm_->UpdateCell(cell);
+  this->vterm_->UpdateCell(cell);
   SDL_Color color = {cell->fg.rgb.red, cell->fg.rgb.green, cell->fg.rgb.blue,
                      255};
   if (cell->attrs.reverse) {
-    SDL_Rect rect = {cursor.x, cursor.y + 4, state->font.metrics->max_advance,
-                     state->font.metrics->height};
-    SDL_SetRenderDrawColor(state->renderer, color.r, color.g, color.b, color.a);
+    SDL_Rect rect = {cursor.x, cursor.y + 4, this->font.metrics->max_advance,
+                     this->font.metrics->height};
+    SDL_SetRenderDrawColor(this->renderer, color.r, color.g, color.b, color.a);
     color.r = ~color.r;
     color.g = ~color.g;
     color.b = ~color.b;
-    SDL_RenderFillRect(state->renderer, &rect);
+    SDL_RenderFillRect(this->renderer, &rect);
   }
 
   if (cell->attrs.bold)
-    font = state->font.bold;
+    font = this->font.bold;
   else if (cell->attrs.italic)
     ;
 
-  SDL_SetRenderDrawColor(state->renderer, color.r, color.g, color.b, color.a);
+  SDL_SetRenderDrawColor(this->renderer, color.r, color.g, color.b, color.a);
   FOX_RenderChar(font, ch, 0, &cursor);
 }
 

@@ -53,4 +53,8 @@ struct TERM_State {
   bool Initialize(TERM_Config *cfg, const char *title);
   bool HandleEvents();
   void Update();
+private:
+  void RenderScreen();
+  void RenderCursor();
+  void RenderCell(int x, int y);
 };
