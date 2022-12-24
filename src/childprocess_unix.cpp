@@ -4,6 +4,9 @@
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 
+static pid_t child_ = 0;
+static int childfd_ = 0;
+
 ChildProcess::~ChildProcess() {
   std::cout << "ChildProcess::~ChildProcess\n";
 
@@ -74,7 +77,4 @@ bool ChildProcess::Launch(const char *exec, char *const argv[]) {
   }
 }
 
-bool ChildProcess::Closed()const
-{
-  return childState == 0;
-}
+bool ChildProcess::Closed() const { return childState == 0; }

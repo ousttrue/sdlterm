@@ -1,23 +1,9 @@
 #pragma once
 #include "childprocess.h"
+#include "term_config.h"
 #include <SDL.h>
 #include <functional>
 #include <memory>
-
-struct TERM_Config {
-  const char *exec;
-  char **args;
-  const char *fontpattern;
-  const char *boldfontpattern;
-  const char *renderer;
-  const char *windowflags[5];
-  int nWindowFlags;
-  int fontsize;
-  int width;
-  int height;
-  int rows;
-  int columns;
-};
 
 class SDLTermWindow {
   SDL_Window *window_;

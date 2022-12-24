@@ -15,8 +15,8 @@
 #ifndef SDL_FOX_H
 #define SDL_FOX_H
 
-#include <SDL2/SDL.h>
-#include <SDL2/begin_code.h>
+#include <SDL.h>
+#include <begin_code.h>
 
 /* set up for c function definitions, even when using c++ */
 #ifdef __cplusplus
@@ -140,6 +140,6 @@ FOX_QueryFontMetrics(FOX_Font *font);
 }
 #endif
 
-#include <SDL2/close_code.h>
+#include <close_code.h>
 
 #endif /* SDL_FOX_H */

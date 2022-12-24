@@ -66,7 +66,7 @@ static Uint32 TERM_GetWindowFlags(TERM_Config *cfg) {
 
   for (int i = 0; i < cfg->nWindowFlags; i++) {
     for (int k = 0; k < lengthof(values); k++) {
-      if (!strcasecmp(cfg->windowflags[i], names[k])) {
+      if (stricmp(cfg->windowflags[i], names[k]) == 0) {
         flags |= values[k];
         break;
       }
@@ -167,7 +167,7 @@ bool SDLTermWindow::Initialize(TERM_Config *cfg, const char *title) {
     SDL_SetWindowIcon(this->window_, this->icon_);
   }
 
-  this->mouse_rect_ = (SDL_Rect){0};
+  this->mouse_rect_ = {0};
   this->mouse_down_ = false;
 
   this->cfg_ = *cfg;
@@ -309,7 +309,7 @@ bool SDLTermWindow::HandleEvents() {
   SDL_Delay(20);
 
   SDL_Event event;
-  if(child_.Closed()){
+  if (child_.Closed()) {
     SDL_Event event;
     event.type = SDL_QUIT;
     SDL_PushEvent(&event);
