@@ -9,30 +9,17 @@
  *****************************************************************************/
 
 #include "sdlterm.h"
-#include "SDL_rect.h"
-#include "SDL_render.h"
-#include "SDL_video.h"
-#include "TERM_Rect.h"
 #include "sdlrenderer.h"
 #include "vtermapp.h"
-#include <cstddef>
-#include <cstdint>
+#include <SDL_rect.h>
+#include <SDL_render.h>
+#include <SDL_video.h>
 #include <iostream>
-#include <memory>
-#include <pty.h>
-#include <signal.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
 #include <vterm.h>
 
 /*****************************************************************************/
 
 #define lengthof(f) (sizeof(f) / sizeof(f[0]))
-
-static int childState = 0;
 
 static char clipboardbuffer[1024];
 
@@ -131,16 +118,6 @@ SDLTermWindow::SDLTermWindow() {}
 SDLTermWindow::~SDLTermWindow() {
   std::cout << "SDLTermWindow::~SDLTermWindow\n";
 
-  kill(this->child_, SIGKILL);
-  pid_t wpid;
-  int wstatus;
-  do {
-    wpid = waitpid(this->child_, &wstatus, WUNTRACED | WCONTINUED);
-    if (wpid == -1)
-      break;
-  } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
-  this->child_ = wpid;
-
   renderer_ = nullptr;
 
   SDL_FreeSurface(this->icon_);
@@ -148,8 +125,6 @@ SDLTermWindow::~SDLTermWindow() {
   SDL_DestroyWindow(this->window_);
   FOX_Exit();
 }
-
-static void TERM_SignalHandler(int signum) { childState = 0; }
 
 bool SDLTermWindow::Initialize(TERM_Config *cfg, const char *title) {
   if (FOX_Init() != FOX_INITIALIZED) {
@@ -182,34 +157,23 @@ bool SDLTermWindow::Initialize(TERM_Config *cfg, const char *title) {
   SDL_StartTextInput();
 
   this->pointer_ = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
-  if (this->pointer_){
+  if (this->pointer_) {
     SDL_SetCursor(this->pointer_);
   }
 
   this->icon_ = SDL_CreateRGBSurfaceFrom(pixels, 16, 16, 16, 16 * 2, 0x0f00,
-                                        0x00f0, 0x000f, 0xf000);
-  if (this->icon_){
+                                         0x00f0, 0x000f, 0xf000);
+  if (this->icon_) {
     SDL_SetWindowIcon(this->window_, this->icon_);
   }
 
   this->mouse_rect_ = (SDL_Rect){0};
-  this->mouse_clicked_ = false;
+  this->mouse_down_ = false;
 
   this->cfg_ = *cfg;
 
-  this->child_ = forkpty(&this->childfd_, NULL, NULL, NULL);
-  if (this->child_ < 0)
+  if (!child_.Launch(cfg->exec, cfg->args)) {
     return false;
-  else if (this->child_ == 0) {
-    execvp(cfg->exec, cfg->args);
-    exit(0);
-  } else {
-    struct sigaction action = {0};
-    action.sa_handler = TERM_SignalHandler;
-    action.sa_flags = 0;
-    sigemptyset(&action.sa_mask);
-    sigaction(SIGCHLD, &action, NULL);
-    childState = 1;
   }
 
   Resize(cfg->width, cfg->height);
@@ -231,7 +195,7 @@ void SDLTermWindow::HandleKeyEvent(SDL_Event *event) {
     int mod = SDL_toupper(event->key.keysym.sym);
     if (mod >= 'A' && mod <= 'Z') {
       char ch = mod - 'A' + 1;
-      write(this->childfd_, &ch, sizeof(ch));
+      child_.Write(&ch, sizeof(ch));
       return;
     }
   }
@@ -337,28 +301,7 @@ void SDLTermWindow::HandleKeyEvent(SDL_Event *event) {
   }
 
   if (cmd) {
-    write(this->childfd_, cmd, SDL_strlen(cmd));
-  }
-}
-
-void SDLTermWindow::HandleChildEvents() {
-  fd_set rfds;
-  struct timeval tv = {0};
-
-  FD_ZERO(&rfds);
-  FD_SET(this->childfd_, &rfds);
-
-  tv.tv_sec = 0;
-  tv.tv_usec = 50000;
-
-  if (select(this->childfd_ + 1, &rfds, NULL, NULL, &tv) > 0) {
-    char line[256];
-    int n;
-    if ((n = read(this->childfd_, line, sizeof(line))) > 0) {
-      this->ChildOutputCallback(line, n);
-      this->renderer_->SetDirty();
-      // vterm_screen_flush_damage(this->screen);
-    }
+    child_.Write(cmd, SDL_strlen(cmd));
   }
 }
 
@@ -366,13 +309,13 @@ bool SDLTermWindow::HandleEvents() {
   SDL_Delay(20);
 
   SDL_Event event;
-  if (childState == 0) {
+  if(child_.Closed()){
     SDL_Event event;
     event.type = SDL_QUIT;
     SDL_PushEvent(&event);
   }
 
-  HandleChildEvents();
+  child_.HandleOutputs();
 
   while (SDL_PollEvent(&event))
     switch (event.type) {
@@ -390,21 +333,21 @@ bool SDLTermWindow::HandleEvents() {
       break;
 
     case SDL_TEXTINPUT:
-      write(this->childfd_, event.edit.text, SDL_strlen(event.edit.text));
+      child_.Write(event.edit.text, SDL_strlen(event.edit.text));
       break;
 
     case SDL_MOUSEMOTION:
-      if (this->mouse_clicked_) {
+      if (this->mouse_down_) {
         this->mouse_rect_.w = event.motion.x - this->mouse_rect_.x;
         this->mouse_rect_.h = event.motion.y - this->mouse_rect_.y;
       }
       break;
 
     case SDL_MOUSEBUTTONDOWN:
-      if (this->mouse_clicked_) {
+      if (this->mouse_down_) {
 
       } else if (event.button.button == SDL_BUTTON_LEFT) {
-        this->mouse_clicked_ = true;
+        this->mouse_down_ = true;
         SDL_GetMouseState(&this->mouse_rect_.x, &this->mouse_rect_.y);
         this->mouse_rect_.w = 0;
         this->mouse_rect_.h = 0;
@@ -413,22 +356,21 @@ bool SDLTermWindow::HandleEvents() {
 
     case SDL_MOUSEBUTTONUP:
       if (event.button.button == SDL_BUTTON_RIGHT) {
+        // paste from clipboard
         char *clipboard = SDL_GetClipboardText();
-        write(this->childfd_, clipboard, SDL_strlen(clipboard));
+        child_.Write(clipboard, SDL_strlen(clipboard));
         SDL_free(clipboard);
       } else if (event.button.button == SDL_BUTTON_LEFT) {
-        auto rect = TERM_Rect::FromMouseRect(
-            this->mouse_rect_, this->renderer_->font_metrics->height,
-            this->renderer_->font_metrics->max_advance);
-
+        // copy to clipboard
+        auto rect = this->renderer_->TermRect(this->mouse_rect_);
         size_t n =
             GetTextCallback(clipboardbuffer, sizeof(clipboardbuffer), rect);
-
-        if (n >= sizeof(clipboardbuffer))
+        if (n >= sizeof(clipboardbuffer)) {
           n = sizeof(clipboardbuffer) - 1;
+        }
         clipboardbuffer[n] = '\0';
         SDL_SetClipboardText(clipboardbuffer);
-        this->mouse_clicked_ = false;
+        this->mouse_down_ = false;
       }
       break;
 
@@ -457,7 +399,7 @@ void SDLTermWindow::Update() {
     }
   }
   this->renderer_->EndRender(render_screen, this->cfg_.width, this->cfg_.height,
-                             this->mouse_clicked_, this->mouse_rect_);
+                             this->mouse_down_, this->mouse_rect_);
 }
 
 void SDLTermWindow::Resize(int width, int height) {
@@ -470,9 +412,6 @@ void SDLTermWindow::Resize(int width, int height) {
     this->cfg_.columns = cols;
     this->RowsColsChanged(this->cfg_.rows, this->cfg_.columns);
 
-    struct winsize ws = {0};
-    ws.ws_col = this->cfg_.columns;
-    ws.ws_row = this->cfg_.rows;
-    ioctl(this->childfd_, TIOCSWINSZ, &ws);
+    child_.NotifyTermSize(this->cfg_.rows, this->cfg_.columns);
   }
 }

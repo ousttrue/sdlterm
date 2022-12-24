@@ -1,5 +1,7 @@
 #pragma once
 #include "SDL_pixels.h"
+#include "SDL_rect.h"
+#include "TERM_Rect.h"
 #include <SDL.h>
 #include <SDL_fox.h>
 #include <memory>
@@ -63,6 +65,10 @@ public:
     }
   }
   void RenderCell(int x, int y, uint32_t ch, CellState cell);
+  TERM_Rect TermRect(const SDL_Rect &rect) const {
+    return TERM_Rect::FromMouseRect(rect, this->font_metrics->height,
+                                    this->font_metrics->max_advance);
+  }
 
 private:
   void RenderCursor();

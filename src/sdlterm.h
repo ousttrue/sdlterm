@@ -1,4 +1,5 @@
 #pragma once
+#include "childprocess.h"
 #include <SDL.h>
 #include <functional>
 #include <memory>
@@ -24,14 +25,12 @@ class SDLTermWindow {
   SDL_Surface *icon_;
   const Uint8 *keys_;
   SDL_Rect mouse_rect_;
-  bool mouse_clicked_;
-  pid_t child_;
-  int childfd_;
+  bool mouse_down_;
   TERM_Config cfg_;
 
 public:
+  ChildProcess child_;
   std::shared_ptr<class SDLRenderer> renderer_;
-  std::function<void(const char *, size_t)> ChildOutputCallback;
   std::function<uint32_t(int row, int col, struct CellState *)> GetCellCallback;
   std::function<void(int rows, int cols)> RowsColsChanged;
   std::function<size_t(char *buf, size_t len, const struct TERM_Rect &rect)>
@@ -47,5 +46,4 @@ public:
 private:
   void HandleKeyEvent(SDL_Event *event);
   void HandleWindowEvent(SDL_Event *event);
-  void HandleChildEvents();
 };

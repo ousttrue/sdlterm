@@ -18,6 +18,6 @@ project(sdlterm)
 subdirs(SDL_fox)
 
 add_executable(${PROJECT_NAME} src/main.cpp src/sdlterm.cpp src/sdlrenderer.cpp
-                               src/vtermapp.cpp)
+                               src/vtermapp.cpp src/childprocess.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2 SDL_fox vterm)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)

@@ -148,10 +148,14 @@ int main(int argc, char *argv[]) {
       &SDLRenderer::MoveCursor, window.renderer_.get(), std::placeholders::_1,
       std::placeholders::_2, std::placeholders::_3);
 
-  // window -> vterm
-  window.ChildOutputCallback = std::bind(
+  // childprocess output
+  window.child_.OutputCallback = std::bind(
       &VTermApp::Write, &vterm, std::placeholders::_1, std::placeholders::_2);
+  window.child_.OutputCallback = [&window](const char *, size_t) {
+    window.renderer_->SetDirty();
+  };
 
+  // window -> vterm
   window.GetCellCallback =
       std::bind(&VTermApp::Cell, &vterm, std::placeholders::_1,
                 std::placeholders::_2, std::placeholders::_3);
