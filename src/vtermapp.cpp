@@ -1,9 +1,7 @@
 #include "vtermapp.h"
 #include "TERM_Rect.h"
 #include "sdlrenderer.h"
-#include <cstdint>
 #include <iostream>
-#include <sys/types.h>
 
 int damage(VTermRect rect, void *user) {
   // printf("damage: [%d, %d, %d, %d]\n", rect.start_col,

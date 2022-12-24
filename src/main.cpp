@@ -3,7 +3,6 @@
 #include "vtermapp.h"
 #include <functional>
 #include <stdexcept>
-#include <unistd.h>
 
 #define PROGNAME "sdlterm version 0.1"
 #define COPYRIGHT                                                              \
