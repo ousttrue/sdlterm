@@ -29,8 +29,8 @@ int main(int argc, char *argv[]) {
                      .fontsize = 16,
                      .width = 800,
                      .height = 600,
-                     .rows = 0,
-                     .columns = 0};
+                     .rows = 24,
+                     .columns = 80};
 
   if (cfg.ParseArgs(argc, argv)) {
     return 1;
@@ -54,9 +54,9 @@ int main(int argc, char *argv[]) {
       std::placeholders::_2, std::placeholders::_3);
 
   // childprocess output
-  window.child_.OutputCallback = std::bind(
-      &VTermApp::Write, &vterm, std::placeholders::_1, std::placeholders::_2);
-  window.child_.OutputCallback = [&window](const char *, size_t) {
+  window.child_.OutputCallback = [&window, &vterm](const char *bytes,
+                                                   size_t len) {
+    vterm.Write(bytes, len);
     window.renderer_->SetDirty();
   };
 

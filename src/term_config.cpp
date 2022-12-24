@@ -1,6 +1,10 @@
 #include "term_config.h"
 #include <SDL.h>
 #include <stdio.h>
+#ifdef _MSC_VER
+#else
+#include <unistd.h>
+#endif
 
 #define COPYRIGHT                                                              \
   "Copyright (c) 2020 Niklas Benfer <https://github.com/palomena>"
@@ -55,32 +59,32 @@ int TERM_Config::ParseArgs(int argc, char **argv) {
       break;
     case 'x':
       if (optarg != NULL)
-        cfg->width = strtol(optarg, NULL, 10);
+        this->width = strtol(optarg, NULL, 10);
       break;
     case 'y':
       if (optarg != NULL)
-        cfg->height = strtol(optarg, NULL, 10);
+        this->height = strtol(optarg, NULL, 10);
       break;
     case 'f':
       if (optarg != NULL)
-        cfg->fontpattern = optarg;
+        this->fontpattern = optarg;
       break;
     case 'b':
       if (optarg != NULL)
-        cfg->boldfontpattern = optarg;
+        this->boldfontpattern = optarg;
       break;
     case 'r':
       if (optarg != NULL)
-        cfg->renderer = optarg;
+        this->renderer = optarg;
       break;
     case 'w':
       if (optarg != NULL) {
-        cfg->windowflags[cfg->nWindowFlags++] = optarg;
+        this->windowflags[this->nWindowFlags++] = optarg;
       }
       break;
     case 'e':
       if (optarg != NULL)
-        cfg->exec = optarg;
+        this->exec = optarg;
       break;
     case 'l':
       TERM_ListRenderBackends();
@@ -92,7 +96,7 @@ int TERM_Config::ParseArgs(int argc, char **argv) {
     }
   }
   if (optind < argc) {
-    cfg->args = &argv[optind];
+    this->args = &argv[optind];
   }
 #endif
   return status;
