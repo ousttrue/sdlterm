@@ -17,9 +17,9 @@ struct TERM_Config {
   int columns;
 };
 
-struct TERM_State {
+class SDLApp {
   SDL_Window *window;
-  SDL_Renderer *renderer;
+  SDL_Renderer *renderer_;
   SDL_Cursor *pointer;
   SDL_Surface *icon;
   const Uint8 *keys;
@@ -49,11 +49,19 @@ struct TERM_State {
   int childfd;
   TERM_Config cfg;
 
-  ~TERM_State();
+public:
+  SDLApp();
+  ~SDLApp();
   bool Initialize(TERM_Config *cfg, const char *title);
   bool HandleEvents();
   void Update();
+  void Resize(int width, int height);
+
 private:
+  void HandleKeyEvent(SDL_Event *event);
+  void HandleWindowEvent(SDL_Event *event);
+  void HandleChildEvents();
+
   void RenderScreen();
   void RenderCursor();
   void RenderCell(int x, int y);

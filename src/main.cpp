@@ -97,7 +97,7 @@ static int ParseArgs(TERM_Config *cfg, int argc, char **argv) {
 }
 
 int main(int argc, char *argv[]) {
-  TERM_State state;
+  SDLApp state;
   TERM_Config cfg = {
       .exec = "/bin/bash",
       .args = NULL,

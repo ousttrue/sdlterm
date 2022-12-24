@@ -63,7 +63,6 @@ static Uint16 pixels[16 * 16] = {
 
 static Uint32 TERM_GetWindowFlags(TERM_Config *cfg);
 static int TERM_GetRendererIndex(TERM_Config *cfg);
-static void TERM_Resize(TERM_State *state, int width, int height);
 static void TERM_SignalHandler(int signum);
 static void swap(int *a, int *b);
 
@@ -110,13 +109,9 @@ int TERM_GetRendererIndex(TERM_Config *cfg) {
   return renderer_index;
 }
 
-/*****************************************************************************/
+SDLApp::SDLApp() {}
 
-extern char *optarg;
-extern int optind;
-
-/*****************************************************************************/
-TERM_State::~TERM_State() {
+SDLApp::~SDLApp() {
   delete vterm_;
 
   kill(this->child, SIGKILL);
@@ -132,13 +127,13 @@ TERM_State::~TERM_State() {
   FOX_CloseFont(this->font.regular);
   SDL_FreeSurface(this->icon);
   SDL_FreeCursor(this->pointer);
-  SDL_DestroyRenderer(this->renderer);
+  SDL_DestroyRenderer(this->renderer_);
   SDL_DestroyWindow(this->window);
   FOX_Exit();
   SDL_Quit();
 }
 
-bool TERM_State::Initialize(TERM_Config *cfg, const char *title) {
+bool SDLApp::Initialize(TERM_Config *cfg, const char *title) {
   if (SDL_Init(SDL_INIT_VIDEO)) {
     return false;
   }
@@ -162,9 +157,9 @@ bool TERM_State::Initialize(TERM_Config *cfg, const char *title) {
     return false;
   }
 
-  this->renderer =
+  this->renderer_ =
       SDL_CreateRenderer(this->window, TERM_GetRendererIndex(cfg), 0);
-  if (this->renderer == NULL) {
+  if (this->renderer_ == NULL) {
     SDL_DestroyWindow(this->window);
     return false;
   }
@@ -173,12 +168,12 @@ bool TERM_State::Initialize(TERM_Config *cfg, const char *title) {
   SDL_StartTextInput();
 
   this->font.regular =
-      FOX_OpenFont(this->renderer, cfg->fontpattern, cfg->fontsize);
+      FOX_OpenFont(this->renderer_, cfg->fontpattern, cfg->fontsize);
   if (this->font.regular == NULL)
     return false;
 
   this->font.bold =
-      FOX_OpenFont(this->renderer, cfg->boldfontpattern, cfg->fontsize);
+      FOX_OpenFont(this->renderer_, cfg->boldfontpattern, cfg->fontsize);
   if (this->font.bold == NULL)
     return false;
 
@@ -237,33 +232,33 @@ bool TERM_State::Initialize(TERM_Config *cfg, const char *title) {
     childState = 1;
   }
 
-  TERM_Resize(this, cfg->width, cfg->height);
+  Resize(cfg->width, cfg->height);
   this->dirty = true;
   return true;
 }
 
 /*****************************************************************************/
 
-static void TERM_HandleWindowEvent(TERM_State *state, SDL_Event *event) {
+void SDLApp::HandleWindowEvent(SDL_Event *event) {
   switch (event->window.event) {
   case SDL_WINDOWEVENT_SIZE_CHANGED:
-    TERM_Resize(state, event->window.data1, event->window.data2);
+    Resize(event->window.data1, event->window.data2);
     break;
   }
 }
 
-static void TERM_HandleKeyEvent(TERM_State *state, SDL_Event *event) {
-  const char *cmd = NULL;
+void SDLApp::HandleKeyEvent(SDL_Event *event) {
 
-  if (state->keys[SDL_SCANCODE_LCTRL]) {
+  if (this->keys[SDL_SCANCODE_LCTRL]) {
     int mod = SDL_toupper(event->key.keysym.sym);
     if (mod >= 'A' && mod <= 'Z') {
       char ch = mod - 'A' + 1;
-      write(state->childfd, &ch, sizeof(ch));
+      write(this->childfd, &ch, sizeof(ch));
       return;
     }
   }
 
+  const char *cmd = NULL;
   switch (event->key.keysym.sym) {
 
   case SDLK_ESCAPE:
@@ -364,32 +359,32 @@ static void TERM_HandleKeyEvent(TERM_State *state, SDL_Event *event) {
   }
 
   if (cmd) {
-    write(state->childfd, cmd, SDL_strlen(cmd));
+    write(this->childfd, cmd, SDL_strlen(cmd));
   }
 }
 
-static void TERM_HandleChildEvents(TERM_State *state) {
+void SDLApp::HandleChildEvents() {
   fd_set rfds;
   struct timeval tv = {0};
 
   FD_ZERO(&rfds);
-  FD_SET(state->childfd, &rfds);
+  FD_SET(this->childfd, &rfds);
 
   tv.tv_sec = 0;
   tv.tv_usec = 50000;
 
-  if (select(state->childfd + 1, &rfds, NULL, NULL, &tv) > 0) {
+  if (select(this->childfd + 1, &rfds, NULL, NULL, &tv) > 0) {
     char line[256];
     int n;
-    if ((n = read(state->childfd, line, sizeof(line))) > 0) {
-      state->vterm_->Write(line, n);
-      state->dirty = true;
-      // vterm_screen_flush_damage(state->screen);
+    if ((n = read(this->childfd, line, sizeof(line))) > 0) {
+      this->vterm_->Write(line, n);
+      this->dirty = true;
+      // vterm_screen_flush_damage(this->screen);
     }
   }
 }
 
-bool TERM_State::HandleEvents() {
+bool SDLApp::HandleEvents() {
   SDL_Delay(20);
 
   SDL_Event event;
@@ -399,7 +394,7 @@ bool TERM_State::HandleEvents() {
     SDL_PushEvent(&event);
   }
 
-  TERM_HandleChildEvents(this);
+  HandleChildEvents();
 
   int status = 0;
   while (SDL_PollEvent(&event))
@@ -410,11 +405,11 @@ bool TERM_State::HandleEvents() {
       break;
 
     case SDL_WINDOWEVENT:
-      TERM_HandleWindowEvent(this, &event);
+      HandleWindowEvent(&event);
       break;
 
     case SDL_KEYDOWN:
-      TERM_HandleKeyEvent(this, &event);
+      HandleKeyEvent(&event);
       break;
 
     case SDL_TEXTINPUT:
@@ -475,16 +470,16 @@ bool TERM_State::HandleEvents() {
       FOX_CloseFont(this->font.regular);
       FOX_CloseFont(this->font.bold);
       this->font.regular =
-          FOX_OpenFont(this->renderer, this->cfg.fontpattern, size);
+          FOX_OpenFont(this->renderer_, this->cfg.fontpattern, size);
       if (this->font.regular == NULL)
         return -1;
 
       this->font.bold =
-          FOX_OpenFont(this->renderer, this->cfg.boldfontpattern, size);
+          FOX_OpenFont(this->renderer_, this->cfg.boldfontpattern, size);
       if (this->font.bold == NULL)
         return -1;
       this->font.metrics = FOX_QueryFontMetrics(this->font.regular);
-      TERM_Resize(this, this->cfg.width, this->cfg.height);
+      Resize(this->cfg.width, this->cfg.height);
       this->cfg.fontsize = size;
       break;
     }
@@ -495,12 +490,12 @@ bool TERM_State::HandleEvents() {
 
 /*****************************************************************************/
 
-void TERM_State::Update() {
+void SDLApp::Update() {
   this->ticks = SDL_GetTicks();
 
   if (this->dirty) {
-    SDL_SetRenderDrawColor(this->renderer, 0, 0, 0, 255);
-    SDL_RenderClear(this->renderer);
+    SDL_SetRenderDrawColor(this->renderer_, 0, 0, 0, 255);
+    SDL_RenderClear(this->renderer_);
     RenderScreen();
   }
 
@@ -515,26 +510,25 @@ void TERM_State::Update() {
   }
 
   if (this->mouse.clicked) {
-    SDL_RenderDrawRect(this->renderer, &this->mouse.rect);
+    SDL_RenderDrawRect(this->renderer_, &this->mouse.rect);
   }
 
-  SDL_RenderPresent(this->renderer);
+  SDL_RenderPresent(this->renderer_);
 }
 
 /*****************************************************************************/
 
-void TERM_State::RenderCursor() {
+void SDLApp::RenderCursor() {
   if (this->cursor.active && this->cursor.visible) {
-    SDL_Rect rect = {this->cursor.position.x *
-                         this->font.metrics->max_advance,
+    SDL_Rect rect = {this->cursor.position.x * this->font.metrics->max_advance,
                      4 + this->cursor.position.y * this->font.metrics->height,
                      4, this->font.metrics->height};
-    SDL_RenderFillRect(this->renderer, &rect);
+    SDL_RenderFillRect(this->renderer_, &rect);
   }
 }
 
-void TERM_State::RenderScreen() {
-  SDL_SetRenderDrawColor(this->renderer, 255, 255, 255, 255);
+void SDLApp::RenderScreen() {
+  SDL_SetRenderDrawColor(this->renderer_, 255, 255, 255, 255);
   for (unsigned y = 0; y < this->cfg.rows; y++) {
     for (unsigned x = 0; x < this->cfg.columns; x++) {
       this->RenderCell(x, y);
@@ -546,13 +540,13 @@ void TERM_State::RenderScreen() {
 
   if (this->bell.active) {
     SDL_Rect rect = {0, 0, this->cfg.width, this->cfg.height};
-    SDL_RenderDrawRect(this->renderer, &rect);
+    SDL_RenderDrawRect(this->renderer_, &rect);
   }
 }
 
 /*****************************************************************************/
 
-void TERM_State::RenderCell(int x, int y) {
+void SDLApp::RenderCell(int x, int y) {
   FOX_Font *font = this->font.regular;
   VTermPos pos = {.row = y, .col = x};
   SDL_Point cursor = {x * this->font.metrics->max_advance,
@@ -569,11 +563,11 @@ void TERM_State::RenderCell(int x, int y) {
   if (cell->attrs.reverse) {
     SDL_Rect rect = {cursor.x, cursor.y + 4, this->font.metrics->max_advance,
                      this->font.metrics->height};
-    SDL_SetRenderDrawColor(this->renderer, color.r, color.g, color.b, color.a);
+    SDL_SetRenderDrawColor(this->renderer_, color.r, color.g, color.b, color.a);
     color.r = ~color.r;
     color.g = ~color.g;
     color.b = ~color.b;
-    SDL_RenderFillRect(this->renderer, &rect);
+    SDL_RenderFillRect(this->renderer_, &rect);
   }
 
   if (cell->attrs.bold)
@@ -581,34 +575,28 @@ void TERM_State::RenderCell(int x, int y) {
   else if (cell->attrs.italic)
     ;
 
-  SDL_SetRenderDrawColor(this->renderer, color.r, color.g, color.b, color.a);
+  SDL_SetRenderDrawColor(this->renderer_, color.r, color.g, color.b, color.a);
   FOX_RenderChar(font, ch, 0, &cursor);
 }
 
-/*****************************************************************************/
-
-void TERM_Resize(TERM_State *state, int width, int height) {
-  int cols = width / (state->font.metrics->max_advance);
-  int rows = height / state->font.metrics->height;
-  state->cfg.width = width;
-  state->cfg.height = height;
-  if (rows != state->cfg.rows || cols != state->cfg.columns) {
-    state->cfg.rows = rows;
-    state->cfg.columns = cols;
-    state->vterm_->Resize(state->cfg.rows, state->cfg.columns);
+void SDLApp::Resize(int width, int height) {
+  int cols = width / (this->font.metrics->max_advance);
+  int rows = height / this->font.metrics->height;
+  this->cfg.width = width;
+  this->cfg.height = height;
+  if (rows != this->cfg.rows || cols != this->cfg.columns) {
+    this->cfg.rows = rows;
+    this->cfg.columns = cols;
+    this->vterm_->Resize(this->cfg.rows, this->cfg.columns);
 
     struct winsize ws = {0};
-    ws.ws_col = state->cfg.columns;
-    ws.ws_row = state->cfg.rows;
-    ioctl(state->childfd, TIOCSWINSZ, &ws);
+    ws.ws_col = this->cfg.columns;
+    ws.ws_row = this->cfg.rows;
+    ioctl(this->childfd, TIOCSWINSZ, &ws);
   }
 }
 
-/*****************************************************************************/
-
 void TERM_SignalHandler(int signum) { childState = 0; }
-
-/*****************************************************************************/
 
 void swap(int *a, int *b) {
   int tmp = *a;
