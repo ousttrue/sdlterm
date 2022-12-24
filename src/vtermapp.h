@@ -1,4 +1,5 @@
 #pragma once
+#include "TERM_Rect.h"
 #include <functional>
 #include <vterm.h>
 
@@ -12,7 +13,7 @@ public:
   ~VTermApp();
   void Initialize(int row, int col);
   void Write(const char *bytes, size_t len);
-  size_t GetText(char *buffer, size_t len, const VTermRect &rect);
+  size_t GetText(char *buffer, size_t len, const TERM_Rect &rect);
   VTermScreenCell *GetCell(const VTermPos &pos);
   void UpdateCell(VTermScreenCell *cell);
   void Resize(int rows, int cols);

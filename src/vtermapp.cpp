@@ -1,4 +1,5 @@
 #include "vtermapp.h"
+#include "TERM_Rect.h"
 
 int damage(VTermRect rect, void *user) {
   // printf("damage: [%d, %d, %d, %d]\n", rect.start_col,
@@ -50,8 +51,14 @@ void VTermApp::Write(const char *bytes, size_t len) {
   vterm_input_write(vterm, bytes, len);
 }
 
-size_t VTermApp::GetText(char *buffer, size_t len, const VTermRect &rect) {
-  return vterm_screen_get_text(this->screen, buffer, len, rect);
+size_t VTermApp::GetText(char *buffer, size_t len, const TERM_Rect &rect) {
+  return vterm_screen_get_text(this->screen, buffer, len,
+                               {
+                                   .start_row = rect.start_row,
+                                   .end_row = rect.end_row,
+                                   .start_col = rect.start_col,
+                                   .end_col = rect.end_col,
+                               });
 }
 
 VTermScreenCell *VTermApp::GetCell(const VTermPos &pos) {

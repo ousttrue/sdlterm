@@ -9,8 +9,15 @@
  *****************************************************************************/
 
 #include "sdlterm.h"
+#include "SDL_rect.h"
+#include "SDL_render.h"
+#include "SDL_video.h"
+#include "TERM_Rect.h"
+#include "sdlrenderer.h"
 #include "vtermapp.h"
 #include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <pty.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -59,16 +66,7 @@ static Uint16 pixels[16 * 16] = {
     0x0fff, 0x0fff, 0x0fff, 0x0fff, 0x0fff, 0x0fff, 0x0fff, 0x0fff, 0x0fff,
     0x0fff, 0x0fff, 0x0fff, 0x0fff};
 
-/*****************************************************************************/
-
-static Uint32 TERM_GetWindowFlags(TERM_Config *cfg);
-static int TERM_GetRendererIndex(TERM_Config *cfg);
-static void TERM_SignalHandler(int signum);
-static void swap(int *a, int *b);
-
-/*****************************************************************************/
-
-Uint32 TERM_GetWindowFlags(TERM_Config *cfg) {
+static Uint32 TERM_GetWindowFlags(TERM_Config *cfg) {
   Uint32 flags = 0;
 
   static const char *names[] = {"FULLSCREEN", "BORDERLESS", "RESIZABLE",
@@ -90,9 +88,7 @@ Uint32 TERM_GetWindowFlags(TERM_Config *cfg) {
   return flags;
 }
 
-/*****************************************************************************/
-
-int TERM_GetRendererIndex(TERM_Config *cfg) {
+static int TERM_GetRendererIndex(TERM_Config *cfg) {
   int renderer_index = -1;
   if (cfg->renderer != NULL) {
     int num = SDL_GetNumRenderDrivers();
@@ -109,6 +105,26 @@ int TERM_GetRendererIndex(TERM_Config *cfg) {
   return renderer_index;
 }
 
+static void swap(int *a, int *b) {
+  int tmp = *a;
+  *a = *b;
+  *b = tmp;
+}
+TERM_Rect TERM_Rect::FromMouseRect(const SDL_Rect &mouse_rect, int font_height,
+                                   int font_width) {
+  TERM_Rect rect = {
+      .start_row = mouse_rect.y / font_height,
+      .end_row = (mouse_rect.y + mouse_rect.h) / font_height,
+      .start_col = mouse_rect.x / font_width,
+      .end_col = (mouse_rect.x + mouse_rect.w) / font_width,
+  };
+  if (rect.start_col > rect.end_col)
+    swap(&rect.start_col, &rect.end_col);
+  if (rect.start_row > rect.end_row)
+    swap(&rect.start_row, &rect.end_row);
+  return rect;
+}
+
 SDLApp::SDLApp() {}
 
 SDLApp::~SDLApp() {
@@ -123,15 +139,15 @@ SDLApp::~SDLApp() {
       break;
   } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
   this->child = wpid;
-  FOX_CloseFont(this->font.bold);
-  FOX_CloseFont(this->font.regular);
   SDL_FreeSurface(this->icon);
   SDL_FreeCursor(this->pointer);
-  SDL_DestroyRenderer(this->renderer_);
+  renderer_ = nullptr;
   SDL_DestroyWindow(this->window);
   FOX_Exit();
   SDL_Quit();
 }
+
+static void TERM_SignalHandler(int signum) { childState = 0; }
 
 bool SDLApp::Initialize(TERM_Config *cfg, const char *title) {
   if (SDL_Init(SDL_INIT_VIDEO)) {
@@ -158,24 +174,14 @@ bool SDLApp::Initialize(TERM_Config *cfg, const char *title) {
   }
 
   this->renderer_ =
-      SDL_CreateRenderer(this->window, TERM_GetRendererIndex(cfg), 0);
+      SDLRenderer::Create(window, TERM_GetRendererIndex(cfg), cfg->fontpattern,
+                          cfg->fontsize, cfg->boldfontpattern);
   if (this->renderer_ == NULL) {
-    SDL_DestroyWindow(this->window);
     return false;
   }
 
   this->keys = SDL_GetKeyboardState(NULL);
   SDL_StartTextInput();
-
-  this->font.regular =
-      FOX_OpenFont(this->renderer_, cfg->fontpattern, cfg->fontsize);
-  if (this->font.regular == NULL)
-    return false;
-
-  this->font.bold =
-      FOX_OpenFont(this->renderer_, cfg->boldfontpattern, cfg->fontsize);
-  if (this->font.bold == NULL)
-    return false;
 
   this->pointer = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
   if (this->pointer)
@@ -186,34 +192,17 @@ bool SDLApp::Initialize(TERM_Config *cfg, const char *title) {
   if (this->icon)
     SDL_SetWindowIcon(this->window, this->icon);
 
-  this->font.metrics = FOX_QueryFontMetrics(this->font.regular);
-  this->ticks = SDL_GetTicks();
-  this->cursor.visible = true;
-  this->cursor.active = true;
-  this->cursor.ticks = 0;
-  this->bell.active = false;
-  this->bell.ticks = 0;
-
-  this->mouse.rect = (SDL_Rect){0};
-  this->mouse.clicked = false;
+  this->mouse_rect = (SDL_Rect){0};
+  this->mouse_clicked = false;
 
   this->vterm_ = new VTermApp();
   this->vterm_->Initialize(cfg->rows, cfg->columns);
 
-  this->vterm_->BellCallback = [state = this]() {
-    state->bell.active = true;
-    state->bell.ticks = state->ticks;
-  };
-  this->vterm_->MoveCursorCallback = [state = this](int row, int col,
-                                                    bool visible) {
-    state->cursor.position.x = col;
-    state->cursor.position.y = row;
-    if (!visible) {
-      // Works great for 'top' but not for 'nano'. Nano should have a cursor!
-      // state->cursor.active = false;
-    } else
-      state->cursor.active = true;
-  };
+  this->vterm_->BellCallback =
+      std::bind(&SDLRenderer::SetBell, this->renderer_);
+  this->vterm_->MoveCursorCallback = std::bind(
+      &SDLRenderer::MoveCursor, this->renderer_, std::placeholders::_1,
+      std::placeholders::_2, std::placeholders::_3);
 
   this->cfg = *cfg;
 
@@ -233,11 +222,9 @@ bool SDLApp::Initialize(TERM_Config *cfg, const char *title) {
   }
 
   Resize(cfg->width, cfg->height);
-  this->dirty = true;
+  renderer_->SetDirty();
   return true;
 }
-
-/*****************************************************************************/
 
 void SDLApp::HandleWindowEvent(SDL_Event *event) {
   switch (event->window.event) {
@@ -378,7 +365,7 @@ void SDLApp::HandleChildEvents() {
     int n;
     if ((n = read(this->childfd, line, sizeof(line))) > 0) {
       this->vterm_->Write(line, n);
-      this->dirty = true;
+      this->renderer_->SetDirty();
       // vterm_screen_flush_damage(this->screen);
     }
   }
@@ -417,20 +404,20 @@ bool SDLApp::HandleEvents() {
       break;
 
     case SDL_MOUSEMOTION:
-      if (this->mouse.clicked) {
-        this->mouse.rect.w = event.motion.x - this->mouse.rect.x;
-        this->mouse.rect.h = event.motion.y - this->mouse.rect.y;
+      if (this->mouse_clicked) {
+        this->mouse_rect.w = event.motion.x - this->mouse_rect.x;
+        this->mouse_rect.h = event.motion.y - this->mouse_rect.y;
       }
       break;
 
     case SDL_MOUSEBUTTONDOWN:
-      if (this->mouse.clicked) {
+      if (this->mouse_clicked) {
 
       } else if (event.button.button == SDL_BUTTON_LEFT) {
-        this->mouse.clicked = true;
-        SDL_GetMouseState(&this->mouse.rect.x, &this->mouse.rect.y);
-        this->mouse.rect.w = 0;
-        this->mouse.rect.h = 0;
+        this->mouse_clicked = true;
+        SDL_GetMouseState(&this->mouse_rect.x, &this->mouse_rect.y);
+        this->mouse_rect.w = 0;
+        this->mouse_rect.h = 0;
       }
       break;
 
@@ -440,18 +427,9 @@ bool SDLApp::HandleEvents() {
         write(this->childfd, clipboard, SDL_strlen(clipboard));
         SDL_free(clipboard);
       } else if (event.button.button == SDL_BUTTON_LEFT) {
-        VTermRect rect = {
-            .start_row = this->mouse.rect.y / this->font.metrics->height,
-            .end_row = (this->mouse.rect.y + this->mouse.rect.h) /
-                       this->font.metrics->height,
-            .start_col = this->mouse.rect.x / this->font.metrics->max_advance,
-            .end_col = (this->mouse.rect.x + this->mouse.rect.w) /
-                       this->font.metrics->max_advance,
-        };
-        if (rect.start_col > rect.end_col)
-          swap(&rect.start_col, &rect.end_col);
-        if (rect.start_row > rect.end_row)
-          swap(&rect.start_row, &rect.end_row);
+        auto rect = TERM_Rect::FromMouseRect(
+            this->mouse_rect, this->renderer_->font_metrics->height,
+            this->renderer_->font_metrics->max_advance);
 
         size_t n =
             vterm_->GetText(clipboardbuffer, sizeof(clipboardbuffer), rect);
@@ -460,25 +438,13 @@ bool SDLApp::HandleEvents() {
           n = sizeof(clipboardbuffer) - 1;
         clipboardbuffer[n] = '\0';
         SDL_SetClipboardText(clipboardbuffer);
-        this->mouse.clicked = false;
+        this->mouse_clicked = false;
       }
       break;
 
     case SDL_MOUSEWHEEL: {
-      int size = this->cfg.fontsize;
-      size += event.wheel.y;
-      FOX_CloseFont(this->font.regular);
-      FOX_CloseFont(this->font.bold);
-      this->font.regular =
-          FOX_OpenFont(this->renderer_, this->cfg.fontpattern, size);
-      if (this->font.regular == NULL)
-        return -1;
-
-      this->font.bold =
-          FOX_OpenFont(this->renderer_, this->cfg.boldfontpattern, size);
-      if (this->font.bold == NULL)
-        return -1;
-      this->font.metrics = FOX_QueryFontMetrics(this->font.regular);
+      int size = this->cfg.fontsize + event.wheel.y;
+      renderer_->ResizeFont(size);
       Resize(this->cfg.width, this->cfg.height);
       this->cfg.fontsize = size;
       break;
@@ -488,100 +454,35 @@ bool SDLApp::HandleEvents() {
   return status == 0;
 }
 
-/*****************************************************************************/
-
 void SDLApp::Update() {
-  this->ticks = SDL_GetTicks();
-
-  if (this->dirty) {
-    SDL_SetRenderDrawColor(this->renderer_, 0, 0, 0, 255);
-    SDL_RenderClear(this->renderer_);
-    RenderScreen();
-  }
-
-  if (this->ticks > (this->cursor.ticks + 250)) {
-    this->cursor.ticks = this->ticks;
-    this->cursor.visible = !this->cursor.visible;
-    this->dirty = true;
-  }
-
-  if (this->bell.active && (this->ticks > (this->bell.ticks + 250))) {
-    this->bell.active = false;
-  }
-
-  if (this->mouse.clicked) {
-    SDL_RenderDrawRect(this->renderer_, &this->mouse.rect);
-  }
-
-  SDL_RenderPresent(this->renderer_);
-}
-
-/*****************************************************************************/
-
-void SDLApp::RenderCursor() {
-  if (this->cursor.active && this->cursor.visible) {
-    SDL_Rect rect = {this->cursor.position.x * this->font.metrics->max_advance,
-                     4 + this->cursor.position.y * this->font.metrics->height,
-                     4, this->font.metrics->height};
-    SDL_RenderFillRect(this->renderer_, &rect);
-  }
-}
-
-void SDLApp::RenderScreen() {
-  SDL_SetRenderDrawColor(this->renderer_, 255, 255, 255, 255);
-  for (unsigned y = 0; y < this->cfg.rows; y++) {
-    for (unsigned x = 0; x < this->cfg.columns; x++) {
-      this->RenderCell(x, y);
+  auto render_screen = this->renderer_->BeginRender();
+  if (render_screen) {
+    for (int y = 0; y < this->cfg.rows; y++) {
+      for (int x = 0; x < this->cfg.columns; x++) {
+        VTermPos pos = {
+            .row = y,
+            .col = x,
+        };
+        auto cell = this->vterm_->GetCell(pos);
+        Uint32 ch = cell->chars[0];
+        if (ch == 0)
+          continue;
+        ;
+        this->vterm_->UpdateCell(cell);
+        SDL_Color color = {cell->fg.rgb.red, cell->fg.rgb.green,
+                           cell->fg.rgb.blue, 255};
+        this->renderer_->RenderCell(x, y, ch, color, cell->attrs.reverse,
+                                    cell->attrs.bold, cell->attrs.italic);
+      }
     }
   }
-
-  RenderCursor();
-  this->dirty = false;
-
-  if (this->bell.active) {
-    SDL_Rect rect = {0, 0, this->cfg.width, this->cfg.height};
-    SDL_RenderDrawRect(this->renderer_, &rect);
-  }
-}
-
-/*****************************************************************************/
-
-void SDLApp::RenderCell(int x, int y) {
-  FOX_Font *font = this->font.regular;
-  VTermPos pos = {.row = y, .col = x};
-  SDL_Point cursor = {x * this->font.metrics->max_advance,
-                      y * this->font.metrics->height};
-
-  auto cell = this->vterm_->GetCell(pos);
-  Uint32 ch = cell->chars[0];
-  if (ch == 0)
-    return;
-
-  this->vterm_->UpdateCell(cell);
-  SDL_Color color = {cell->fg.rgb.red, cell->fg.rgb.green, cell->fg.rgb.blue,
-                     255};
-  if (cell->attrs.reverse) {
-    SDL_Rect rect = {cursor.x, cursor.y + 4, this->font.metrics->max_advance,
-                     this->font.metrics->height};
-    SDL_SetRenderDrawColor(this->renderer_, color.r, color.g, color.b, color.a);
-    color.r = ~color.r;
-    color.g = ~color.g;
-    color.b = ~color.b;
-    SDL_RenderFillRect(this->renderer_, &rect);
-  }
-
-  if (cell->attrs.bold)
-    font = this->font.bold;
-  else if (cell->attrs.italic)
-    ;
-
-  SDL_SetRenderDrawColor(this->renderer_, color.r, color.g, color.b, color.a);
-  FOX_RenderChar(font, ch, 0, &cursor);
+  this->renderer_->EndRender(render_screen, this->cfg.width, this->cfg.height,
+                             this->mouse_clicked, this->mouse_rect);
 }
 
 void SDLApp::Resize(int width, int height) {
-  int cols = width / (this->font.metrics->max_advance);
-  int rows = height / this->font.metrics->height;
+  int cols = width / (this->renderer_->font_metrics->max_advance);
+  int rows = height / this->renderer_->font_metrics->height;
   this->cfg.width = width;
   this->cfg.height = height;
   if (rows != this->cfg.rows || cols != this->cfg.columns) {
@@ -594,12 +495,4 @@ void SDLApp::Resize(int width, int height) {
     ws.ws_row = this->cfg.rows;
     ioctl(this->childfd, TIOCSWINSZ, &ws);
   }
-}
-
-void TERM_SignalHandler(int signum) { childState = 0; }
-
-void swap(int *a, int *b) {
-  int tmp = *a;
-  *a = *b;
-  *b = tmp;
 }

@@ -5,6 +5,10 @@
 #define COPYRIGHT                                                              \
   "Copyright (c) 2020 Niklas Benfer <https://github.com/palomena>"
 
+// auto FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf";
+auto FONT = "/home/ousttrue/.fonts/HackGenNerdConsole-Regular.ttf";
+auto BOLD_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf";
+
 static const char options[] = "hvlx:y:f:b:s:r:w:e:";
 
 static const char help[] = {
@@ -98,20 +102,18 @@ static int ParseArgs(TERM_Config *cfg, int argc, char **argv) {
 
 int main(int argc, char *argv[]) {
   SDLApp state;
-  TERM_Config cfg = {
-      .exec = "/bin/bash",
-      .args = NULL,
-      .fontpattern = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-      .boldfontpattern =
-          "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
-      .renderer = NULL,
-      .windowflags = {NULL},
-      .nWindowFlags = 0,
-      .fontsize = 16,
-      .width = 800,
-      .height = 600,
-      .rows = 0,
-      .columns = 0};
+  TERM_Config cfg = {.exec = "/bin/bash",
+                     .args = NULL,
+                     .fontpattern = FONT,
+                     .boldfontpattern = BOLD_FONT,
+                     .renderer = NULL,
+                     .windowflags = {NULL},
+                     .nWindowFlags = 0,
+                     .fontsize = 16,
+                     .width = 800,
+                     .height = 600,
+                     .rows = 0,
+                     .columns = 0};
 
   if (ParseArgs(&cfg, argc, argv)) {
     return 1;
