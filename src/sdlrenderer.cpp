@@ -1,7 +1,9 @@
 #include "sdlrenderer.h"
+#include <iostream>
 
 SDLRenderer::SDLRenderer(SDL_Renderer *renderer) : renderer_(renderer) {}
 SDLRenderer::~SDLRenderer() {
+  std::cout << "SDLRenderer::~SDLRenderer\n";
   FOX_CloseFont(this->font_bold);
   FOX_CloseFont(this->font_regular);
   SDL_DestroyRenderer(this->renderer_);

@@ -2,6 +2,7 @@
 #include "TERM_Rect.h"
 #include "sdlrenderer.h"
 #include <cstdint>
+#include <iostream>
 #include <sys/types.h>
 
 int damage(VTermRect rect, void *user) {
@@ -39,7 +40,10 @@ VTermScreenCallbacks callbacks = {
     .sb_pushline = sb_pushline,
 };
 
-VTermApp::~VTermApp() { vterm_free(this->vterm); }
+VTermApp::~VTermApp() {
+  std::cout << "VTermApp::~VTermApp\n";
+  vterm_free(this->vterm);
+}
 
 void VTermApp::Initialize(int row, int col) {
   vterm = vterm_new(row, col);

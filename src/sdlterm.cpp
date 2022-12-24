@@ -17,6 +17,7 @@
 #include "vtermapp.h"
 #include <cstddef>
 #include <cstdint>
+#include <iostream>
 #include <memory>
 #include <pty.h>
 #include <signal.h>
@@ -125,9 +126,11 @@ TERM_Rect TERM_Rect::FromMouseRect(const SDL_Rect &mouse_rect, int font_height,
   return rect;
 }
 
-SDLApp::SDLApp() {}
+SDLTermWindow::SDLTermWindow() {}
 
-SDLApp::~SDLApp() {
+SDLTermWindow::~SDLTermWindow() {
+  std::cout << "SDLTermWindow::~SDLTermWindow\n";
+
   kill(this->child, SIGKILL);
   pid_t wpid;
   int wstatus;
@@ -137,21 +140,18 @@ SDLApp::~SDLApp() {
       break;
   } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
   this->child = wpid;
+
+  renderer_ = nullptr;
+
   SDL_FreeSurface(this->icon);
   SDL_FreeCursor(this->pointer);
-  renderer_ = nullptr;
   SDL_DestroyWindow(this->window);
   FOX_Exit();
-  SDL_Quit();
 }
 
 static void TERM_SignalHandler(int signum) { childState = 0; }
 
-bool SDLApp::Initialize(TERM_Config *cfg, const char *title) {
-  if (SDL_Init(SDL_INIT_VIDEO)) {
-    return false;
-  }
-
+bool SDLTermWindow::Initialize(TERM_Config *cfg, const char *title) {
   if (FOX_Init() != FOX_INITIALIZED) {
     return false;
   }
@@ -167,14 +167,14 @@ bool SDLApp::Initialize(TERM_Config *cfg, const char *title) {
   this->window =
       SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                        cfg->width, cfg->height, wflags);
-  if (this->window == NULL) {
+  if (!this->window) {
     return false;
   }
 
   this->renderer_ =
       SDLRenderer::Create(window, TERM_GetRendererIndex(cfg), cfg->fontpattern,
                           cfg->fontsize, cfg->boldfontpattern);
-  if (this->renderer_ == NULL) {
+  if (!this->renderer_) {
     return false;
   }
 
@@ -182,13 +182,15 @@ bool SDLApp::Initialize(TERM_Config *cfg, const char *title) {
   SDL_StartTextInput();
 
   this->pointer = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
-  if (this->pointer)
+  if (this->pointer){
     SDL_SetCursor(this->pointer);
+  }
 
   this->icon = SDL_CreateRGBSurfaceFrom(pixels, 16, 16, 16, 16 * 2, 0x0f00,
                                         0x00f0, 0x000f, 0xf000);
-  if (this->icon)
+  if (this->icon){
     SDL_SetWindowIcon(this->window, this->icon);
+  }
 
   this->mouse_rect = (SDL_Rect){0};
   this->mouse_clicked = false;
@@ -215,7 +217,7 @@ bool SDLApp::Initialize(TERM_Config *cfg, const char *title) {
   return true;
 }
 
-void SDLApp::HandleWindowEvent(SDL_Event *event) {
+void SDLTermWindow::HandleWindowEvent(SDL_Event *event) {
   switch (event->window.event) {
   case SDL_WINDOWEVENT_SIZE_CHANGED:
     Resize(event->window.data1, event->window.data2);
@@ -223,7 +225,7 @@ void SDLApp::HandleWindowEvent(SDL_Event *event) {
   }
 }
 
-void SDLApp::HandleKeyEvent(SDL_Event *event) {
+void SDLTermWindow::HandleKeyEvent(SDL_Event *event) {
 
   if (this->keys[SDL_SCANCODE_LCTRL]) {
     int mod = SDL_toupper(event->key.keysym.sym);
@@ -339,7 +341,7 @@ void SDLApp::HandleKeyEvent(SDL_Event *event) {
   }
 }
 
-void SDLApp::HandleChildEvents() {
+void SDLTermWindow::HandleChildEvents() {
   fd_set rfds;
   struct timeval tv = {0};
 
@@ -360,7 +362,7 @@ void SDLApp::HandleChildEvents() {
   }
 }
 
-bool SDLApp::HandleEvents() {
+bool SDLTermWindow::HandleEvents() {
   SDL_Delay(20);
 
   SDL_Event event;
@@ -372,12 +374,11 @@ bool SDLApp::HandleEvents() {
 
   HandleChildEvents();
 
-  int status = 0;
   while (SDL_PollEvent(&event))
     switch (event.type) {
 
     case SDL_QUIT:
-      status = 1;
+      return false;
       break;
 
     case SDL_WINDOWEVENT:
@@ -440,10 +441,10 @@ bool SDLApp::HandleEvents() {
     }
     }
 
-  return status == 0;
+  return true;
 }
 
-void SDLApp::Update() {
+void SDLTermWindow::Update() {
   auto render_screen = this->renderer_->BeginRender();
   if (render_screen) {
     for (int y = 0; y < this->cfg.rows; y++) {
@@ -459,7 +460,7 @@ void SDLApp::Update() {
                              this->mouse_clicked, this->mouse_rect);
 }
 
-void SDLApp::Resize(int width, int height) {
+void SDLTermWindow::Resize(int width, int height) {
   int cols = width / (this->renderer_->font_metrics->max_advance);
   int rows = height / this->renderer_->font_metrics->height;
   this->cfg.width = width;

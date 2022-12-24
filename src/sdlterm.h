@@ -18,7 +18,7 @@ struct TERM_Config {
   int columns;
 };
 
-class SDLApp {
+class SDLTermWindow {
   SDL_Window *window;
   SDL_Cursor *pointer;
   SDL_Surface *icon;
@@ -37,8 +37,8 @@ public:
   std::function<size_t(char *buf, size_t len, const struct TERM_Rect &rect)>
       GetTextCallback;
 
-  SDLApp();
-  ~SDLApp();
+  SDLTermWindow();
+  ~SDLTermWindow();
   bool Initialize(TERM_Config *cfg, const char *title);
   bool HandleEvents();
   void Update();

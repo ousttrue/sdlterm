@@ -2,6 +2,7 @@
 #include "sdlterm.h"
 #include "vtermapp.h"
 #include <functional>
+#include <stdexcept>
 #include <unistd.h>
 
 #define PROGNAME "sdlterm version 0.1"
@@ -102,7 +103,18 @@ static int ParseArgs(TERM_Config *cfg, int argc, char **argv) {
   return status;
 }
 
+struct SDLApp {
+  SDLApp() {
+    if (SDL_Init(SDL_INIT_VIDEO)) {
+      throw std::runtime_error("SDL_Init");
+    }
+  }
+  ~SDLApp() { SDL_Quit(); }
+};
+
 int main(int argc, char *argv[]) {
+  SDLApp app;
+
   TERM_Config cfg = {.exec = "/bin/bash",
                      .args = NULL,
                      .fontpattern = FONT,
@@ -120,35 +132,36 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  SDLApp state;
   VTermApp vterm;
-
   vterm.Initialize(cfg.rows, cfg.columns);
-  state.RowsColsChanged = std::bind(
-      &VTermApp::Resize, &vterm, std::placeholders::_1, std::placeholders::_2);
 
-  if (!state.Initialize(&cfg, PROGNAME)) {
+  SDLTermWindow window;
+  window.RowsColsChanged = std::bind(
+      &VTermApp::Resize, &vterm, std::placeholders::_1, std::placeholders::_2);
+  if (!window.Initialize(&cfg, PROGNAME)) {
     return 2;
   }
 
-  vterm.BellCallback = std::bind(&SDLRenderer::SetBell, state.renderer_);
+  // vterm -> window
+  vterm.BellCallback = std::bind(&SDLRenderer::SetBell, window.renderer_.get());
   vterm.MoveCursorCallback = std::bind(
-      &SDLRenderer::MoveCursor, state.renderer_, std::placeholders::_1,
+      &SDLRenderer::MoveCursor, window.renderer_.get(), std::placeholders::_1,
       std::placeholders::_2, std::placeholders::_3);
 
-  state.ChildOutputCallback = std::bind(
+  // window -> vterm
+  window.ChildOutputCallback = std::bind(
       &VTermApp::Write, &vterm, std::placeholders::_1, std::placeholders::_2);
 
-  state.GetCellCallback =
+  window.GetCellCallback =
       std::bind(&VTermApp::Cell, &vterm, std::placeholders::_1,
                 std::placeholders::_2, std::placeholders::_3);
 
-  state.GetTextCallback =
+  window.GetTextCallback =
       std::bind(&VTermApp::GetText, &vterm, std::placeholders::_1,
                 std::placeholders::_2, std::placeholders::_3);
 
-  while (state.HandleEvents()) {
-    state.Update();
+  while (window.HandleEvents()) {
+    window.Update();
   }
 
   return 0;
