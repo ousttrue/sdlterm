@@ -131,21 +131,21 @@ SDLTermWindow::SDLTermWindow() {}
 SDLTermWindow::~SDLTermWindow() {
   std::cout << "SDLTermWindow::~SDLTermWindow\n";
 
-  kill(this->child, SIGKILL);
+  kill(this->child_, SIGKILL);
   pid_t wpid;
   int wstatus;
   do {
-    wpid = waitpid(this->child, &wstatus, WUNTRACED | WCONTINUED);
+    wpid = waitpid(this->child_, &wstatus, WUNTRACED | WCONTINUED);
     if (wpid == -1)
       break;
   } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
-  this->child = wpid;
+  this->child_ = wpid;
 
   renderer_ = nullptr;
 
-  SDL_FreeSurface(this->icon);
-  SDL_FreeCursor(this->pointer);
-  SDL_DestroyWindow(this->window);
+  SDL_FreeSurface(this->icon_);
+  SDL_FreeCursor(this->pointer_);
+  SDL_DestroyWindow(this->window_);
   FOX_Exit();
 }
 
@@ -164,43 +164,43 @@ bool SDLTermWindow::Initialize(TERM_Config *cfg, const char *title) {
     cfg->width = rect.w;
     cfg->height = rect.h;
   }
-  this->window =
+  this->window_ =
       SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                        cfg->width, cfg->height, wflags);
-  if (!this->window) {
+  if (!this->window_) {
     return false;
   }
 
   this->renderer_ =
-      SDLRenderer::Create(window, TERM_GetRendererIndex(cfg), cfg->fontpattern,
+      SDLRenderer::Create(window_, TERM_GetRendererIndex(cfg), cfg->fontpattern,
                           cfg->fontsize, cfg->boldfontpattern);
   if (!this->renderer_) {
     return false;
   }
 
-  this->keys = SDL_GetKeyboardState(NULL);
+  this->keys_ = SDL_GetKeyboardState(NULL);
   SDL_StartTextInput();
 
-  this->pointer = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
-  if (this->pointer){
-    SDL_SetCursor(this->pointer);
+  this->pointer_ = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
+  if (this->pointer_){
+    SDL_SetCursor(this->pointer_);
   }
 
-  this->icon = SDL_CreateRGBSurfaceFrom(pixels, 16, 16, 16, 16 * 2, 0x0f00,
+  this->icon_ = SDL_CreateRGBSurfaceFrom(pixels, 16, 16, 16, 16 * 2, 0x0f00,
                                         0x00f0, 0x000f, 0xf000);
-  if (this->icon){
-    SDL_SetWindowIcon(this->window, this->icon);
+  if (this->icon_){
+    SDL_SetWindowIcon(this->window_, this->icon_);
   }
 
-  this->mouse_rect = (SDL_Rect){0};
-  this->mouse_clicked = false;
+  this->mouse_rect_ = (SDL_Rect){0};
+  this->mouse_clicked_ = false;
 
-  this->cfg = *cfg;
+  this->cfg_ = *cfg;
 
-  this->child = forkpty(&this->childfd, NULL, NULL, NULL);
-  if (this->child < 0)
+  this->child_ = forkpty(&this->childfd_, NULL, NULL, NULL);
+  if (this->child_ < 0)
     return false;
-  else if (this->child == 0) {
+  else if (this->child_ == 0) {
     execvp(cfg->exec, cfg->args);
     exit(0);
   } else {
@@ -227,11 +227,11 @@ void SDLTermWindow::HandleWindowEvent(SDL_Event *event) {
 
 void SDLTermWindow::HandleKeyEvent(SDL_Event *event) {
 
-  if (this->keys[SDL_SCANCODE_LCTRL]) {
+  if (this->keys_[SDL_SCANCODE_LCTRL]) {
     int mod = SDL_toupper(event->key.keysym.sym);
     if (mod >= 'A' && mod <= 'Z') {
       char ch = mod - 'A' + 1;
-      write(this->childfd, &ch, sizeof(ch));
+      write(this->childfd_, &ch, sizeof(ch));
       return;
     }
   }
@@ -337,7 +337,7 @@ void SDLTermWindow::HandleKeyEvent(SDL_Event *event) {
   }
 
   if (cmd) {
-    write(this->childfd, cmd, SDL_strlen(cmd));
+    write(this->childfd_, cmd, SDL_strlen(cmd));
   }
 }
 
@@ -346,15 +346,15 @@ void SDLTermWindow::HandleChildEvents() {
   struct timeval tv = {0};
 
   FD_ZERO(&rfds);
-  FD_SET(this->childfd, &rfds);
+  FD_SET(this->childfd_, &rfds);
 
   tv.tv_sec = 0;
   tv.tv_usec = 50000;
 
-  if (select(this->childfd + 1, &rfds, NULL, NULL, &tv) > 0) {
+  if (select(this->childfd_ + 1, &rfds, NULL, NULL, &tv) > 0) {
     char line[256];
     int n;
-    if ((n = read(this->childfd, line, sizeof(line))) > 0) {
+    if ((n = read(this->childfd_, line, sizeof(line))) > 0) {
       this->ChildOutputCallback(line, n);
       this->renderer_->SetDirty();
       // vterm_screen_flush_damage(this->screen);
@@ -390,35 +390,35 @@ bool SDLTermWindow::HandleEvents() {
       break;
 
     case SDL_TEXTINPUT:
-      write(this->childfd, event.edit.text, SDL_strlen(event.edit.text));
+      write(this->childfd_, event.edit.text, SDL_strlen(event.edit.text));
       break;
 
     case SDL_MOUSEMOTION:
-      if (this->mouse_clicked) {
-        this->mouse_rect.w = event.motion.x - this->mouse_rect.x;
-        this->mouse_rect.h = event.motion.y - this->mouse_rect.y;
+      if (this->mouse_clicked_) {
+        this->mouse_rect_.w = event.motion.x - this->mouse_rect_.x;
+        this->mouse_rect_.h = event.motion.y - this->mouse_rect_.y;
       }
       break;
 
     case SDL_MOUSEBUTTONDOWN:
-      if (this->mouse_clicked) {
+      if (this->mouse_clicked_) {
 
       } else if (event.button.button == SDL_BUTTON_LEFT) {
-        this->mouse_clicked = true;
-        SDL_GetMouseState(&this->mouse_rect.x, &this->mouse_rect.y);
-        this->mouse_rect.w = 0;
-        this->mouse_rect.h = 0;
+        this->mouse_clicked_ = true;
+        SDL_GetMouseState(&this->mouse_rect_.x, &this->mouse_rect_.y);
+        this->mouse_rect_.w = 0;
+        this->mouse_rect_.h = 0;
       }
       break;
 
     case SDL_MOUSEBUTTONUP:
       if (event.button.button == SDL_BUTTON_RIGHT) {
         char *clipboard = SDL_GetClipboardText();
-        write(this->childfd, clipboard, SDL_strlen(clipboard));
+        write(this->childfd_, clipboard, SDL_strlen(clipboard));
         SDL_free(clipboard);
       } else if (event.button.button == SDL_BUTTON_LEFT) {
         auto rect = TERM_Rect::FromMouseRect(
-            this->mouse_rect, this->renderer_->font_metrics->height,
+            this->mouse_rect_, this->renderer_->font_metrics->height,
             this->renderer_->font_metrics->max_advance);
 
         size_t n =
@@ -428,15 +428,15 @@ bool SDLTermWindow::HandleEvents() {
           n = sizeof(clipboardbuffer) - 1;
         clipboardbuffer[n] = '\0';
         SDL_SetClipboardText(clipboardbuffer);
-        this->mouse_clicked = false;
+        this->mouse_clicked_ = false;
       }
       break;
 
     case SDL_MOUSEWHEEL: {
-      int size = this->cfg.fontsize + event.wheel.y;
+      int size = this->cfg_.fontsize + event.wheel.y;
       renderer_->ResizeFont(size);
-      Resize(this->cfg.width, this->cfg.height);
-      this->cfg.fontsize = size;
+      Resize(this->cfg_.width, this->cfg_.height);
+      this->cfg_.fontsize = size;
       break;
     }
     }
@@ -447,8 +447,8 @@ bool SDLTermWindow::HandleEvents() {
 void SDLTermWindow::Update() {
   auto render_screen = this->renderer_->BeginRender();
   if (render_screen) {
-    for (int y = 0; y < this->cfg.rows; y++) {
-      for (int x = 0; x < this->cfg.columns; x++) {
+    for (int y = 0; y < this->cfg_.rows; y++) {
+      for (int x = 0; x < this->cfg_.columns; x++) {
         CellState cell;
         if (auto ch = GetCellCallback(y, x, &cell)) {
           this->renderer_->RenderCell(x, y, ch, cell);
@@ -456,23 +456,23 @@ void SDLTermWindow::Update() {
       }
     }
   }
-  this->renderer_->EndRender(render_screen, this->cfg.width, this->cfg.height,
-                             this->mouse_clicked, this->mouse_rect);
+  this->renderer_->EndRender(render_screen, this->cfg_.width, this->cfg_.height,
+                             this->mouse_clicked_, this->mouse_rect_);
 }
 
 void SDLTermWindow::Resize(int width, int height) {
   int cols = width / (this->renderer_->font_metrics->max_advance);
   int rows = height / this->renderer_->font_metrics->height;
-  this->cfg.width = width;
-  this->cfg.height = height;
-  if (rows != this->cfg.rows || cols != this->cfg.columns) {
-    this->cfg.rows = rows;
-    this->cfg.columns = cols;
-    this->RowsColsChanged(this->cfg.rows, this->cfg.columns);
+  this->cfg_.width = width;
+  this->cfg_.height = height;
+  if (rows != this->cfg_.rows || cols != this->cfg_.columns) {
+    this->cfg_.rows = rows;
+    this->cfg_.columns = cols;
+    this->RowsColsChanged(this->cfg_.rows, this->cfg_.columns);
 
     struct winsize ws = {0};
-    ws.ws_col = this->cfg.columns;
-    ws.ws_row = this->cfg.rows;
-    ioctl(this->childfd, TIOCSWINSZ, &ws);
+    ws.ws_col = this->cfg_.columns;
+    ws.ws_row = this->cfg_.rows;
+    ioctl(this->childfd_, TIOCSWINSZ, &ws);
   }
 }

@@ -19,15 +19,15 @@ struct TERM_Config {
 };
 
 class SDLTermWindow {
-  SDL_Window *window;
-  SDL_Cursor *pointer;
-  SDL_Surface *icon;
-  const Uint8 *keys;
-  SDL_Rect mouse_rect;
-  bool mouse_clicked;
-  pid_t child;
-  int childfd;
-  TERM_Config cfg;
+  SDL_Window *window_;
+  SDL_Cursor *pointer_;
+  SDL_Surface *icon_;
+  const Uint8 *keys_;
+  SDL_Rect mouse_rect_;
+  bool mouse_clicked_;
+  pid_t child_;
+  int childfd_;
+  TERM_Config cfg_;
 
 public:
   std::shared_ptr<class SDLRenderer> renderer_;
