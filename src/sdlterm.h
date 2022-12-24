@@ -1,5 +1,6 @@
 #pragma once
 #include <SDL.h>
+#include <functional>
 #include <memory>
 
 struct TERM_Config {
@@ -19,11 +20,9 @@ struct TERM_Config {
 
 class SDLApp {
   SDL_Window *window;
-  std::shared_ptr<class SDLRenderer> renderer_;
   SDL_Cursor *pointer;
   SDL_Surface *icon;
   const Uint8 *keys;
-  class VTermApp *vterm_ = nullptr;
   SDL_Rect mouse_rect;
   bool mouse_clicked;
   pid_t child;
@@ -31,6 +30,13 @@ class SDLApp {
   TERM_Config cfg;
 
 public:
+  std::shared_ptr<class SDLRenderer> renderer_;
+  std::function<void(const char *, size_t)> ChildOutputCallback;
+  std::function<uint32_t(int row, int col, struct CellState *)> GetCellCallback;
+  std::function<void(int rows, int cols)> RowsColsChanged;
+  std::function<size_t(char *buf, size_t len, const struct TERM_Rect &rect)>
+      GetTextCallback;
+
   SDLApp();
   ~SDLApp();
   bool Initialize(TERM_Config *cfg, const char *title);

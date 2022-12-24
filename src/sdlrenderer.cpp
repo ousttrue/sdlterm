@@ -114,28 +114,28 @@ void SDLRenderer::RenderCursor() {
   }
 }
 
-void SDLRenderer::RenderCell(int x, int y, uint32_t ch, SDL_Color color,
-                             bool attrs_reverse, bool attrs_bold,
-                             bool attrs_italic) {
+void SDLRenderer::RenderCell(int x, int y, uint32_t ch, CellState cell) {
   FOX_Font *font = this->font_regular;
   SDL_Point cursor = {x * this->font_metrics->max_advance,
                       y * this->font_metrics->height};
 
-  if (attrs_reverse) {
+  if (cell.attrs_reverse) {
     SDL_Rect rect = {cursor.x, cursor.y + 4, this->font_metrics->max_advance,
                      this->font_metrics->height};
-    SDL_SetRenderDrawColor(this->renderer_, color.r, color.g, color.b, color.a);
-    color.r = ~color.r;
-    color.g = ~color.g;
-    color.b = ~color.b;
+    SDL_SetRenderDrawColor(this->renderer_, cell.color.r, cell.color.g,
+                           cell.color.b, cell.color.a);
+    cell.color.r = ~cell.color.r;
+    cell.color.g = ~cell.color.g;
+    cell.color.b = ~cell.color.b;
     SDL_RenderFillRect(this->renderer_, &rect);
   }
 
-  if (attrs_bold)
+  if (cell.attrs_bold) {
     font = this->font_bold;
-  else if (attrs_italic)
-    ;
+  } else if (cell.attrs_italic) {
+  }
 
-  SDL_SetRenderDrawColor(this->renderer_, color.r, color.g, color.b, color.a);
+  SDL_SetRenderDrawColor(this->renderer_, cell.color.r, cell.color.g,
+                         cell.color.b, cell.color.a);
   FOX_RenderChar(font, ch, 0, &cursor);
 }

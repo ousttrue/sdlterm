@@ -1,5 +1,8 @@
 #include "vtermapp.h"
 #include "TERM_Rect.h"
+#include "sdlrenderer.h"
+#include <cstdint>
+#include <sys/types.h>
 
 int damage(VTermRect rect, void *user) {
   // printf("damage: [%d, %d, %d, %d]\n", rect.start_col,
@@ -61,14 +64,23 @@ size_t VTermApp::GetText(char *buffer, size_t len, const TERM_Rect &rect) {
                                });
 }
 
-VTermScreenCell *VTermApp::GetCell(const VTermPos &pos) {
+uint32_t VTermApp::Cell(int y, int x, CellState *pCell) {
+  VTermPos pos = {
+      .row = y,
+      .col = x,
+  };
+  VTermScreenCell cell;
   vterm_screen_get_cell(screen, pos, &cell);
-  return &cell;
-}
-
-void VTermApp::UpdateCell(VTermScreenCell *cell) {
-  vterm_state_convert_color_to_rgb(termstate, &cell->fg);
-  vterm_state_convert_color_to_rgb(termstate, &cell->bg);
+  Uint32 ch = cell.chars[0];
+  if (ch) {
+    vterm_state_convert_color_to_rgb(termstate, &cell.fg);
+    vterm_state_convert_color_to_rgb(termstate, &cell.bg);
+    pCell->color = {cell.fg.rgb.red, cell.fg.rgb.green, cell.fg.rgb.blue, 255};
+    pCell->attrs_reverse = cell.attrs.reverse;
+    pCell->attrs_bold = cell.attrs.bold;
+    pCell->attrs_italic = cell.attrs.italic;
+  }
+  return ch;
 }
 
 void VTermApp::Resize(int rows, int cols) { vterm_set_size(vterm, rows, cols); }

@@ -128,8 +128,6 @@ TERM_Rect TERM_Rect::FromMouseRect(const SDL_Rect &mouse_rect, int font_height,
 SDLApp::SDLApp() {}
 
 SDLApp::~SDLApp() {
-  delete vterm_;
-
   kill(this->child, SIGKILL);
   pid_t wpid;
   int wstatus;
@@ -194,15 +192,6 @@ bool SDLApp::Initialize(TERM_Config *cfg, const char *title) {
 
   this->mouse_rect = (SDL_Rect){0};
   this->mouse_clicked = false;
-
-  this->vterm_ = new VTermApp();
-  this->vterm_->Initialize(cfg->rows, cfg->columns);
-
-  this->vterm_->BellCallback =
-      std::bind(&SDLRenderer::SetBell, this->renderer_);
-  this->vterm_->MoveCursorCallback = std::bind(
-      &SDLRenderer::MoveCursor, this->renderer_, std::placeholders::_1,
-      std::placeholders::_2, std::placeholders::_3);
 
   this->cfg = *cfg;
 
@@ -364,7 +353,7 @@ void SDLApp::HandleChildEvents() {
     char line[256];
     int n;
     if ((n = read(this->childfd, line, sizeof(line))) > 0) {
-      this->vterm_->Write(line, n);
+      this->ChildOutputCallback(line, n);
       this->renderer_->SetDirty();
       // vterm_screen_flush_damage(this->screen);
     }
@@ -432,7 +421,7 @@ bool SDLApp::HandleEvents() {
             this->renderer_->font_metrics->max_advance);
 
         size_t n =
-            vterm_->GetText(clipboardbuffer, sizeof(clipboardbuffer), rect);
+            GetTextCallback(clipboardbuffer, sizeof(clipboardbuffer), rect);
 
         if (n >= sizeof(clipboardbuffer))
           n = sizeof(clipboardbuffer) - 1;
@@ -459,20 +448,10 @@ void SDLApp::Update() {
   if (render_screen) {
     for (int y = 0; y < this->cfg.rows; y++) {
       for (int x = 0; x < this->cfg.columns; x++) {
-        VTermPos pos = {
-            .row = y,
-            .col = x,
-        };
-        auto cell = this->vterm_->GetCell(pos);
-        Uint32 ch = cell->chars[0];
-        if (ch == 0)
-          continue;
-        ;
-        this->vterm_->UpdateCell(cell);
-        SDL_Color color = {cell->fg.rgb.red, cell->fg.rgb.green,
-                           cell->fg.rgb.blue, 255};
-        this->renderer_->RenderCell(x, y, ch, color, cell->attrs.reverse,
-                                    cell->attrs.bold, cell->attrs.italic);
+        CellState cell;
+        if (auto ch = GetCellCallback(y, x, &cell)) {
+          this->renderer_->RenderCell(x, y, ch, cell);
+        }
       }
     }
   }
@@ -488,7 +467,7 @@ void SDLApp::Resize(int width, int height) {
   if (rows != this->cfg.rows || cols != this->cfg.columns) {
     this->cfg.rows = rows;
     this->cfg.columns = cols;
-    this->vterm_->Resize(this->cfg.rows, this->cfg.columns);
+    this->RowsColsChanged(this->cfg.rows, this->cfg.columns);
 
     struct winsize ws = {0};
     ws.ws_col = this->cfg.columns;

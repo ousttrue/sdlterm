@@ -1,12 +1,14 @@
+#include "sdlrenderer.h"
 #include "sdlterm.h"
+#include "vtermapp.h"
+#include <functional>
 #include <unistd.h>
 
 #define PROGNAME "sdlterm version 0.1"
 #define COPYRIGHT                                                              \
   "Copyright (c) 2020 Niklas Benfer <https://github.com/palomena>"
 
-// auto FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf";
-auto FONT = "/home/ousttrue/.fonts/HackGenNerdConsole-Regular.ttf";
+auto FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf";
 auto BOLD_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf";
 
 static const char options[] = "hvlx:y:f:b:s:r:w:e:";
@@ -101,7 +103,6 @@ static int ParseArgs(TERM_Config *cfg, int argc, char **argv) {
 }
 
 int main(int argc, char *argv[]) {
-  SDLApp state;
   TERM_Config cfg = {.exec = "/bin/bash",
                      .args = NULL,
                      .fontpattern = FONT,
@@ -119,9 +120,32 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  SDLApp state;
+  VTermApp vterm;
+
+  vterm.Initialize(cfg.rows, cfg.columns);
+  state.RowsColsChanged = std::bind(
+      &VTermApp::Resize, &vterm, std::placeholders::_1, std::placeholders::_2);
+
   if (!state.Initialize(&cfg, PROGNAME)) {
     return 2;
   }
+
+  vterm.BellCallback = std::bind(&SDLRenderer::SetBell, state.renderer_);
+  vterm.MoveCursorCallback = std::bind(
+      &SDLRenderer::MoveCursor, state.renderer_, std::placeholders::_1,
+      std::placeholders::_2, std::placeholders::_3);
+
+  state.ChildOutputCallback = std::bind(
+      &VTermApp::Write, &vterm, std::placeholders::_1, std::placeholders::_2);
+
+  state.GetCellCallback =
+      std::bind(&VTermApp::Cell, &vterm, std::placeholders::_1,
+                std::placeholders::_2, std::placeholders::_3);
+
+  state.GetTextCallback =
+      std::bind(&VTermApp::GetText, &vterm, std::placeholders::_1,
+                std::placeholders::_2, std::placeholders::_3);
 
   while (state.HandleEvents()) {
     state.Update();

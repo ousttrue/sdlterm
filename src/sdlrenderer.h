@@ -1,8 +1,16 @@
 #pragma once
+#include "SDL_pixels.h"
 #include <SDL.h>
 #include <SDL_fox.h>
 #include <memory>
 #include <string>
+
+struct CellState {
+  SDL_Color color;
+  bool attrs_reverse;
+  bool attrs_bold;
+  bool attrs_italic;
+};
 
 class SDLRenderer {
   SDL_Renderer *renderer_;
@@ -54,8 +62,7 @@ public:
       cursor.active = true;
     }
   }
-  void RenderCell(int x, int y, uint32_t ch, SDL_Color color,
-                  bool attrs_reverse, bool attrs_bold, bool attrs_italic);
+  void RenderCell(int x, int y, uint32_t ch, CellState cell);
 
 private:
   void RenderCursor();
