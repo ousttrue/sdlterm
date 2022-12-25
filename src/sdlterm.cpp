@@ -64,10 +64,10 @@ static Uint32 TERM_GetWindowFlags(TERM_Config *cfg) {
 
   for (int i = 0; i < cfg->nWindowFlags; i++) {
     for (int k = 0; k < lengthof(values); k++) {
-#ifdef _MSC_VER      
-      if (_stricmp(cfg->windowflags[i], names[k]) == 0) 
+#ifdef _MSC_VER
+      if (_stricmp(cfg->windowflags[i], names[k]) == 0)
 #else
-      if (strcasecmp(cfg->windowflags[i], names[k]) == 0) 
+      if (strcasecmp(cfg->windowflags[i], names[k]) == 0)
 #endif
       {
         flags |= values[k];
@@ -120,20 +120,13 @@ SDLTermWindow::SDLTermWindow() {}
 
 SDLTermWindow::~SDLTermWindow() {
   std::cout << "SDLTermWindow::~SDLTermWindow\n";
-
   renderer_ = nullptr;
-
   SDL_FreeSurface(this->icon_);
   SDL_FreeCursor(this->pointer_);
   SDL_DestroyWindow(this->window_);
-  FOX_Exit();
 }
 
 bool SDLTermWindow::Initialize(TERM_Config *cfg, const char *title) {
-  if (FOX_Init() != FOX_INITIALIZED) {
-    return false;
-  }
-
   Uint32 wflags = TERM_GetWindowFlags(cfg);
   if (wflags & SDL_WINDOW_FULLSCREEN) {
     /* Override resolution with display fullscreen resolution */

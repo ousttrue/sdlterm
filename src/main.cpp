@@ -4,6 +4,7 @@
 #include "vtermapp.h"
 #include <functional>
 #include <stdexcept>
+#include <SDL_fox.h>
 
 auto FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf";
 auto BOLD_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf";
@@ -13,8 +14,15 @@ struct SDLApp {
     if (SDL_Init(SDL_INIT_VIDEO)) {
       throw std::runtime_error("SDL_Init");
     }
+    if (FOX_Init() != FOX_INITIALIZED) {
+      throw std::runtime_error("FOX_Init");
+    }
   }
-  ~SDLApp() { SDL_Quit(); }
+  ~SDLApp() {
+    FOX_Exit();
+
+    SDL_Quit();
+  }
 };
 
 int main(int argc, char *argv[]) {
