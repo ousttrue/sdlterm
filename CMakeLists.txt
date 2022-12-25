@@ -1,37 +1,6 @@
 cmake_minimum_required(VERSION 3.22.1)
-
-include(FetchContent)
-FetchContent_Declare(
-  sdl
-  GIT_REPOSITORY https://github.com/libsdl-org/SDL
-  GIT_TAG release-2.26.1
-  GIT_PROGRESS TRUE)
-
-FetchContent_Declare(
-  freetype2
-  GIT_REPOSITORY https://github.com/aseprite/freetype2.git
-  GIT_TAG VER-2-10-0
-  GIT_PROGRESS TRUE)
-
-FetchContent_MakeAvailable(sdl freetype2)
-
-FetchContent_Populate(
-  vterm URL https://www.leonerd.org.uk/code/libvterm/libvterm-0.3.tar.gz)
-
-add_library(
-  vterm
-  ${vterm_SOURCE_DIR}/src/encoding.c
-  ${vterm_SOURCE_DIR}/src/keyboard.c
-  ${vterm_SOURCE_DIR}/src/mouse.c
-  ${vterm_SOURCE_DIR}/src/parser.c
-  ${vterm_SOURCE_DIR}/src/pen.c
-  ${vterm_SOURCE_DIR}/src/screen.c
-  ${vterm_SOURCE_DIR}/src/state.c
-  ${vterm_SOURCE_DIR}/src/unicode.c
-  ${vterm_SOURCE_DIR}/src/vterm.c)
-target_include_directories(vterm PUBLIC ${vterm_SOURCE_DIR}/include
-                                        ${CMAKE_CURRENT_LIST_DIR}/vterm_src)
-
 project(sdlterm)
+add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
-subdirs(SDL_fox src)
+subdirs(thirdparty src)
