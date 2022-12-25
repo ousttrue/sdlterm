@@ -5,16 +5,40 @@
 #include <mutex>
 #include <process.h>
 #include <stdexcept>
+#include <winerror.h>
 
 // Forward declarations
 HRESULT InitializeStartupInfoAttachedToPseudoConsole(STARTUPINFOEXA *, HPCON);
 
 struct Context {
   HPCON hpc_ = INVALID_HANDLE_VALUE;
+  HANDLE hPipeIn_ = INVALID_HANDLE_VALUE;
+  HANDLE hPipeOut_ = INVALID_HANDLE_VALUE;
+
+  STARTUPINFOEXA startupInfo_{};
+  PROCESS_INFORMATION piClient_{};
+
   std::vector<char> buffer_;
   std::mutex mtx_;
-  HANDLE inpipe_ = INVALID_HANDLE_VALUE;
-  HANDLE outpipe_ = INVALID_HANDLE_VALUE;
+
+  void Shutdown() {
+    // Now safe to clean-up client app's process-info & thread
+    CloseHandle(piClient_.hThread);
+    CloseHandle(piClient_.hProcess);
+
+    // Cleanup attribute list
+    DeleteProcThreadAttributeList(startupInfo_.lpAttributeList);
+    free(startupInfo_.lpAttributeList);
+
+    // Close ConPTY - this will terminate client process if running
+    ClosePseudoConsole(hpc_);
+
+    // Clean-up the pipes
+    if (INVALID_HANDLE_VALUE != hPipeOut_)
+      CloseHandle(hPipeOut_);
+    if (INVALID_HANDLE_VALUE != hPipeIn_)
+      CloseHandle(hPipeIn_);
+  }
 
   HRESULT CreatePseudoConsoleAndPipes() {
     HRESULT hr{E_UNEXPECTED};
@@ -22,8 +46,8 @@ struct Context {
     HANDLE hPipePTYOut{INVALID_HANDLE_VALUE};
 
     // Create the pipes to which the ConPTY will connect
-    if (CreatePipe(&hPipePTYIn, &outpipe_, NULL, 0) &&
-        CreatePipe(&inpipe_, &hPipePTYOut, NULL, 0)) {
+    if (CreatePipe(&hPipePTYIn, &hPipeOut_, NULL, 0) &&
+        CreatePipe(&hPipeIn_, &hPipePTYOut, NULL, 0)) {
       // Determine required size of Pseudo Console
       COORD consoleSize{};
       CONSOLE_SCREEN_BUFFER_INFO csbi{};
@@ -47,6 +71,63 @@ struct Context {
     }
 
     return hr;
+  }
+
+  // Initializes the specified startup info struct with the required properties
+  // and updates its thread attribute list with the specified ConPTY handle
+  HRESULT
+  InitializeStartupInfoAttachedToPseudoConsole() {
+
+    auto pStartupInfo = &startupInfo_;
+    pStartupInfo->StartupInfo.cb = sizeof(STARTUPINFOEX);
+
+    // Get the size of the thread attribute list.
+    size_t attrListSize{};
+    InitializeProcThreadAttributeList(NULL, 1, 0, &attrListSize);
+
+    // Allocate a thread attribute list of the correct size
+    pStartupInfo->lpAttributeList =
+        reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(malloc(attrListSize));
+
+    // Initialize thread attribute list
+    HRESULT hr{E_UNEXPECTED};
+    if (pStartupInfo->lpAttributeList &&
+        InitializeProcThreadAttributeList(pStartupInfo->lpAttributeList, 1, 0,
+                                          &attrListSize)) {
+      // Set Pseudo Console attribute
+      hr = UpdateProcThreadAttribute(pStartupInfo->lpAttributeList, 0,
+                                     PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, hpc_,
+                                     sizeof(HPCON), NULL, NULL)
+               ? S_OK
+               : HRESULT_FROM_WIN32(GetLastError());
+    } else {
+      hr = HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    return hr;
+  }
+
+  bool Launch(const char *exec) {
+    // Initialize the necessary startup info struct
+    if (FAILED(InitializeStartupInfoAttachedToPseudoConsole())) {
+      return false;
+    }
+
+    // Launch ping to emit some text back via the pipe
+    auto hr =
+        CreateProcessA(NULL,         // No module name - use Command Line
+                       (char *)exec, // Command Line
+                       NULL,         // Process handle not inheritable
+                       NULL,         // Thread handle not inheritable
+                       FALSE,        // Inherit handles
+                       EXTENDED_STARTUPINFO_PRESENT, // Creation flags
+                       NULL, // Use parent's environment block
+                       NULL, // Use parent's starting directory
+                       &startupInfo_.StartupInfo, // Pointer to STARTUPINFO
+                       &piClient_) // Pointer to PROCESS_INFORMATION
+            ? S_OK
+            : GetLastError();
+    return SUCCEEDED(hr);
   }
 
   void Enqueue(const char *buf, DWORD len) {
@@ -75,7 +156,7 @@ Context context_;
 
 static void __cdecl PipeListener(LPVOID p) {
   auto context = (Context *)p;
-  HANDLE hPipe{context->inpipe_};
+  HANDLE hPipe{context->hPipeIn_};
   HANDLE hConsole{GetStdHandle(STD_OUTPUT_HANDLE)};
 
   const DWORD BUFF_SIZE{512};
@@ -100,42 +181,6 @@ static void __cdecl PipeListener(LPVOID p) {
   std::cout << "PipeListener finished." << std::endl;
 }
 
-// Initializes the specified startup info struct with the required properties
-// and updates its thread attribute list with the specified ConPTY handle
-HRESULT
-InitializeStartupInfoAttachedToPseudoConsole(STARTUPINFOEXA *pStartupInfo,
-                                             HPCON hPC) {
-  HRESULT hr{E_UNEXPECTED};
-
-  if (pStartupInfo) {
-    size_t attrListSize{};
-
-    pStartupInfo->StartupInfo.cb = sizeof(STARTUPINFOEX);
-
-    // Get the size of the thread attribute list.
-    InitializeProcThreadAttributeList(NULL, 1, 0, &attrListSize);
-
-    // Allocate a thread attribute list of the correct size
-    pStartupInfo->lpAttributeList =
-        reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(malloc(attrListSize));
-
-    // Initialize thread attribute list
-    if (pStartupInfo->lpAttributeList &&
-        InitializeProcThreadAttributeList(pStartupInfo->lpAttributeList, 1, 0,
-                                          &attrListSize)) {
-      // Set Pseudo Console attribute
-      hr = UpdateProcThreadAttribute(pStartupInfo->lpAttributeList, 0,
-                                     PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, hPC,
-                                     sizeof(HPCON), NULL, NULL)
-               ? S_OK
-               : HRESULT_FROM_WIN32(GetLastError());
-    } else {
-      hr = HRESULT_FROM_WIN32(GetLastError());
-    }
-  }
-  return hr;
-}
-
 ChildProcess::~ChildProcess() {}
 bool ChildProcess::Launch(const char *exec, char *const argv[]) {
 
@@ -150,66 +195,19 @@ bool ChildProcess::Launch(const char *exec, char *const argv[]) {
   HANDLE hPipeListenerThread{
       reinterpret_cast<HANDLE>(_beginthread(PipeListener, 0, &context_))};
 
-  // Initialize the necessary startup info struct
-  STARTUPINFOEXA startupInfo{};
-  if (FAILED(InitializeStartupInfoAttachedToPseudoConsole(&startupInfo,
-                                                          context_.hpc_))) {
+  if (!context_.Launch(exec)) {
     return false;
   }
-
-  // Launch ping to emit some text back via the pipe
-  PROCESS_INFORMATION piClient{};
-  hr = CreateProcessA(NULL,         // No module name - use Command Line
-                      (char *)exec, // Command Line
-                      NULL,         // Process handle not inheritable
-                      NULL,         // Thread handle not inheritable
-                      FALSE,        // Inherit handles
-                      EXTENDED_STARTUPINFO_PRESENT, // Creation flags
-                      NULL, // Use parent's environment block
-                      NULL, // Use parent's starting directory
-                      &startupInfo.StartupInfo, // Pointer to STARTUPINFO
-                      &piClient) // Pointer to PROCESS_INFORMATION
-           ? S_OK
-           : GetLastError();
-
-  // if (S_OK == hr) {
-  //   // Wait up to 10s for ping process to complete
-  //   WaitForSingleObject(piClient.hThread, 10 * 1000);
-
-  //   // Allow listening thread to catch-up with final output!
-  //   Sleep(500);
-  // }
-
-  // --- CLOSEDOWN ---
-
-  // // Now safe to clean-up client app's process-info & thread
-  // CloseHandle(piClient.hThread);
-  // CloseHandle(piClient.hProcess);
-
-  // // Cleanup attribute list
-  // DeleteProcThreadAttributeList(startupInfo.lpAttributeList);
-  // free(startupInfo.lpAttributeList);
-
-  // Close ConPTY - this will terminate client process if running
-  // ClosePseudoConsole(hPC);
-
-  // Clean-up the pipes
-  // if (INVALID_HANDLE_VALUE != hPipeOut)
-  //   CloseHandle(hPipeOut);
-  // if (INVALID_HANDLE_VALUE != hPipeIn)
-  //   CloseHandle(hPipeIn);
 
   return true;
 }
 bool ChildProcess::Closed() const {
-
-  //  WaitForSingleObject(piClient.hThread, 10 * 1000);
-
-  return false;
+  auto result = WaitForSingleObject(context_.piClient_.hThread, 0);
+  return result == WAIT_OBJECT_0;
 }
 void ChildProcess::Write(const char *buf, size_t size) {
   DWORD write_size;
-  WriteFile(context_.outpipe_, buf, size, &write_size, NULL);
+  WriteFile(context_.hPipeOut_, buf, size, &write_size, NULL);
 }
 void ChildProcess::NotifyTermSize(unsigned short rows, unsigned short cols) {
   // Retrieve width and height dimensions of display in
