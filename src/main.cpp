@@ -2,12 +2,19 @@
 #include "sdlterm.h"
 #include "term_config.h"
 #include "vtermapp.h"
+#include <SDL_fox.h>
 #include <functional>
 #include <stdexcept>
-#include <SDL_fox.h>
 
+#ifdef _MSC_VER
+auto FONT = "C:/Windows/Fonts/meiryo.ttc";
+auto BOLD_FONT = "C:/Windows/Fonts/meiryob.ttc";
+auto SHELL = "pwsh.exe";
+#else
 auto FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf";
 auto BOLD_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf";
+auto SHELL = "/bin/bash";
+#endif
 
 struct SDLApp {
   SDLApp() {
@@ -27,7 +34,7 @@ struct SDLApp {
 
 int main(int argc, char *argv[]) {
 
-  TERM_Config cfg = {.exec = "/bin/bash",
+  TERM_Config cfg = {.exec = SHELL,
                      .args = NULL,
                      .fontpattern = FONT,
                      .boldfontpattern = BOLD_FONT,
@@ -62,7 +69,7 @@ int main(int argc, char *argv[]) {
       std::placeholders::_2, std::placeholders::_3);
 
   // childprocess output
-  window.child_.OutputCallback = [&window, &vterm](const char *bytes,
+  window.ChildOutputCallback = [&window, &vterm](const char *bytes,
                                                    size_t len) {
     vterm.Write(bytes, len);
     window.renderer_->SetDirty();

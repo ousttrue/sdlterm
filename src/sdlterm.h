@@ -16,6 +16,7 @@ class SDLTermWindow {
 
 public:
   ChildProcess child_;
+  std::function<void(const char *, size_t)> ChildOutputCallback;
   std::shared_ptr<class SDLRenderer> renderer_;
   std::function<uint32_t(int row, int col, struct CellState *)> GetCellCallback;
   std::function<void(int rows, int cols)> RowsColsChanged;

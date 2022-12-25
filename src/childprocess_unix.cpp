@@ -35,11 +35,10 @@ void ChildProcess::NotifyTermSize(uint16_t rows, uint16_t cols) {
 
 void ChildProcess::HandleOutputs() {
   fd_set rfds;
-  struct timeval tv = {0};
-
   FD_ZERO(&rfds);
   FD_SET(childfd_, &rfds);
 
+  struct timeval tv = {0};
   tv.tv_sec = 0;
   tv.tv_usec = 50000;
 

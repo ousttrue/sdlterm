@@ -2,12 +2,12 @@
 #include <functional>
 
 struct ChildProcess {
-  std::function<void(const char *, size_t)> OutputCallback;
+  char ReadBuffer[8192];
 
   ~ChildProcess();
   bool Launch(const char *exec, char *const argv[]);
   bool Closed() const;
   void Write(const char *buf, size_t size);
   void NotifyTermSize(unsigned short rows, unsigned short cols);
-  void HandleOutputs();
+  const char *Read(size_t *pSize);
 };

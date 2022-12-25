@@ -311,7 +311,14 @@ bool SDLTermWindow::HandleEvents() {
     SDL_PushEvent(&event);
   }
 
-  child_.HandleOutputs();
+  {
+    size_t read_size;
+    auto p = child_.Read(&read_size);
+    if(read_size)
+    {
+      ChildOutputCallback(p, read_size);
+    }
+  }
 
   while (SDL_PollEvent(&event))
     switch (event.type) {
