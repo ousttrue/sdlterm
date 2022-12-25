@@ -1,14 +1,70 @@
 #include "childprocess.h"
 #include <Windows.h>
+#include <algorithm>
+#include <mutex>
 #include <process.h>
+#include <stdexcept>
 
 // Forward declarations
-HRESULT CreatePseudoConsoleAndPipes(HPCON *, HANDLE *, HANDLE *);
 HRESULT InitializeStartupInfoAttachedToPseudoConsole(STARTUPINFOEXA *, HPCON);
-void __cdecl PipeListener(LPVOID);
 
-HRESULT CreatePseudoConsoleAndPipes(HPCON *phPC, HANDLE *phPipeIn,
-                                    HANDLE *phPipeOut) {
+struct Context {
+  std::vector<char> buffer_;
+  std::mutex mtx_;
+  HANDLE inpipe_ = nullptr;
+  HANDLE outpipe_ = nullptr;
+
+  void Enqueue(const char *buf, DWORD len) {
+    if (len == 0) {
+      return;
+    }
+    std::lock_guard<std::mutex> lock(mtx_);
+    auto size = buffer_.size();
+    buffer_.resize(size + len);
+    memcpy(buffer_.data() + size, buf, len);
+  }
+
+  DWORD Dequeue(char *buf, size_t len) {
+    std::lock_guard<std::mutex> lock(mtx_);
+    if (len < buffer_.size()) {
+      throw std::runtime_error("not implemented yet");
+    } else {
+      auto size = std::min(len, buffer_.size());
+      memcpy(buf, buffer_.data(), size);
+      buffer_.resize(0);
+      return size;
+    }
+  }
+};
+Context context_;
+
+static void __cdecl PipeListener(LPVOID p) {
+  auto context = (Context *)p;
+  HANDLE hPipe{context->inpipe_};
+  HANDLE hConsole{GetStdHandle(STD_OUTPUT_HANDLE)};
+
+  const DWORD BUFF_SIZE{512};
+  char szBuffer[BUFF_SIZE]{};
+
+  DWORD dwBytesWritten{};
+  DWORD dwBytesRead{};
+  BOOL fRead{FALSE};
+  do {
+    // Read from the pipe
+    fRead = ReadFile(hPipe, szBuffer, BUFF_SIZE, &dwBytesRead, NULL);
+
+    // Write received text to the Console
+    // Note: Write to the Console using WriteFile(hConsole...), not
+    // printf()/puts() to prevent partially-read VT sequences from corrupting
+    // output
+    // WriteFile(hConsole, szBuffer, dwBytesRead, &dwBytesWritten, NULL);
+    context->Enqueue(szBuffer, BUFF_SIZE);
+
+  } while (fRead && dwBytesRead >= 0);
+}
+
+static HRESULT CreatePseudoConsoleAndPipes(HPCON *phPC, HANDLE *phPipeIn,
+                                           HANDLE *phPipeOut) {
   HRESULT hr{E_UNEXPECTED};
   HANDLE hPipePTYIn{INVALID_HANDLE_VALUE};
   HANDLE hPipePTYOut{INVALID_HANDLE_VALUE};
@@ -77,50 +133,14 @@ InitializeStartupInfoAttachedToPseudoConsole(STARTUPINFOEXA *pStartupInfo,
   return hr;
 }
 
-void __cdecl PipeListener(LPVOID pipe) {
-  HANDLE hPipe{pipe};
-  HANDLE hConsole{GetStdHandle(STD_OUTPUT_HANDLE)};
-
-  const DWORD BUFF_SIZE{512};
-  char szBuffer[BUFF_SIZE]{};
-
-  DWORD dwBytesWritten{};
-  DWORD dwBytesRead{};
-  BOOL fRead{FALSE};
-  do {
-    // Read from the pipe
-    fRead = ReadFile(hPipe, szBuffer, BUFF_SIZE, &dwBytesRead, NULL);
-
-    // Write received text to the Console
-    // Note: Write to the Console using WriteFile(hConsole...), not
-    // printf()/puts() to prevent partially-read VT sequences from corrupting
-    // output
-    WriteFile(hConsole, szBuffer, dwBytesRead, &dwBytesWritten, NULL);
-
-  } while (fRead && dwBytesRead >= 0);
-}
-
 ChildProcess::~ChildProcess() {}
 bool ChildProcess::Launch(const char *exec, char *const argv[]) {
-  // wchar_t szCommand[]{L"ping localhost"};
-  // HRESULT hr{E_UNEXPECTED};
-
-  // HANDLE hConsole = {GetStdHandle(STD_OUTPUT_HANDLE)};
-  // Enable Console VT Processing
-  // DWORD consoleMode{};
-  // GetConsoleMode(hConsole, &consoleMode);
-  // hr =
-  //     SetConsoleMode(hConsole, consoleMode |
-  //     ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-  //         ? S_OK
-  //         : GetLastError();
-
   HPCON hPC{INVALID_HANDLE_VALUE};
 
   //  Create the Pseudo Console and pipes to it
-  HANDLE hPipeIn{INVALID_HANDLE_VALUE};
-  HANDLE hPipeOut{INVALID_HANDLE_VALUE};
-  auto hr = CreatePseudoConsoleAndPipes(&hPC, &hPipeIn, &hPipeOut);
+  // HANDLE hPipeIn{INVALID_HANDLE_VALUE};
+  auto hr =
+      CreatePseudoConsoleAndPipes(&hPC, &context_.inpipe_, &context_.outpipe_);
   if (FAILED(hr)) {
     return false;
   }
@@ -128,7 +148,7 @@ bool ChildProcess::Launch(const char *exec, char *const argv[]) {
   // Create & start thread to listen to the incoming pipe
   // Note: Using CRT-safe _beginthread() rather than CreateThread()
   HANDLE hPipeListenerThread{
-      reinterpret_cast<HANDLE>(_beginthread(PipeListener, 0, hPipeIn))};
+      reinterpret_cast<HANDLE>(_beginthread(PipeListener, 0, &context_))};
 
   // Initialize the necessary startup info struct
   STARTUPINFOEXA startupInfo{};
@@ -181,9 +201,14 @@ bool ChildProcess::Launch(const char *exec, char *const argv[]) {
   return true;
 }
 bool ChildProcess::Closed() const { return false; }
-void ChildProcess::Write(const char *buf, size_t size) {}
-void ChildProcess::NotifyTermSize(unsigned short rows, unsigned short cols) {}
+void ChildProcess::Write(const char *buf, size_t size) {
+  DWORD write_size;
+  WriteFile(context_.outpipe_, buf, size, &write_size, NULL);
+}
+void ChildProcess::NotifyTermSize(unsigned short rows, unsigned short cols) {
+  // TODO
+}
 const char *ChildProcess::Read(size_t *pSize) {
-  *pSize = 0;
-  return 0;
+  *pSize = context_.Dequeue(ReadBuffer, sizeof(ReadBuffer));
+  return ReadBuffer;
 }

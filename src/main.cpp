@@ -7,9 +7,10 @@
 #include <stdexcept>
 
 #ifdef _MSC_VER
-auto FONT = "C:/Windows/Fonts/meiryo.ttc";
-auto BOLD_FONT = "C:/Windows/Fonts/meiryob.ttc";
-auto SHELL = "pwsh.exe";
+auto FONT = "C:/Windows/Fonts/consola.ttf";
+auto BOLD_FONT = "C:/Windows/Fonts/consolab.ttf";
+// auto SHELL = "pwsh.exe";
+auto SHELL = "cmd.exe";
 #else
 auto FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf";
 auto BOLD_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf";
