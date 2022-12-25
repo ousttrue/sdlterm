@@ -9,10 +9,11 @@
 HRESULT InitializeStartupInfoAttachedToPseudoConsole(STARTUPINFOEXA *, HPCON);
 
 struct Context {
+  HPCON hpc_ = INVALID_HANDLE_VALUE;
   std::vector<char> buffer_;
   std::mutex mtx_;
-  HANDLE inpipe_ = nullptr;
-  HANDLE outpipe_ = nullptr;
+  HANDLE inpipe_ = INVALID_HANDLE_VALUE;
+  HANDLE outpipe_ = INVALID_HANDLE_VALUE;
 
   void Enqueue(const char *buf, DWORD len) {
     if (len == 0) {
@@ -135,12 +136,10 @@ InitializeStartupInfoAttachedToPseudoConsole(STARTUPINFOEXA *pStartupInfo,
 
 ChildProcess::~ChildProcess() {}
 bool ChildProcess::Launch(const char *exec, char *const argv[]) {
-  HPCON hPC{INVALID_HANDLE_VALUE};
 
   //  Create the Pseudo Console and pipes to it
-  // HANDLE hPipeIn{INVALID_HANDLE_VALUE};
   auto hr =
-      CreatePseudoConsoleAndPipes(&hPC, &context_.inpipe_, &context_.outpipe_);
+      CreatePseudoConsoleAndPipes(&context_.hpc_, &context_.inpipe_, &context_.outpipe_);
   if (FAILED(hr)) {
     return false;
   }
@@ -152,7 +151,7 @@ bool ChildProcess::Launch(const char *exec, char *const argv[]) {
 
   // Initialize the necessary startup info struct
   STARTUPINFOEXA startupInfo{};
-  if (FAILED(InitializeStartupInfoAttachedToPseudoConsole(&startupInfo, hPC))) {
+  if (FAILED(InitializeStartupInfoAttachedToPseudoConsole(&startupInfo, context_.hpc_))) {
     return false;
   }
 
@@ -206,7 +205,16 @@ void ChildProcess::Write(const char *buf, size_t size) {
   WriteFile(context_.outpipe_, buf, size, &write_size, NULL);
 }
 void ChildProcess::NotifyTermSize(unsigned short rows, unsigned short cols) {
-  // TODO
+  // Retrieve width and height dimensions of display in
+  // characters using theoretical height/width functions
+  // that can retrieve the properties from the display
+  // attached to the event.
+  COORD size;
+  size.X = cols;
+  size.Y = rows;
+
+  // Call pseudoconsole API to inform buffer dimension update
+  ResizePseudoConsole(context_.hpc_, size);
 }
 const char *ChildProcess::Read(size_t *pSize) {
   *pSize = context_.Dequeue(ReadBuffer, sizeof(ReadBuffer));
