@@ -2,9 +2,11 @@
 #include <SDL.h>
 #include <stdio.h>
 #ifdef _MSC_VER
+#include <getopt.h>
 #else
 #include <unistd.h>
 #endif
+#include <stdlib.h>
 
 #define COPYRIGHT                                                              \
   "Copyright (c) 2020 Niklas Benfer <https://github.com/palomena>"
@@ -42,9 +44,6 @@ static void TERM_ListRenderBackends(void) {
 
 int TERM_Config::ParseArgs(int argc, char **argv) {
   int status = 0;
-
-#ifdef _MSC_VER
-#else
 
   int option;
   while ((option = getopt(argc, argv, options)) != -1) {
@@ -98,6 +97,6 @@ int TERM_Config::ParseArgs(int argc, char **argv) {
   if (optind < argc) {
     this->args = &argv[optind];
   }
-#endif
+
   return status;
 }
