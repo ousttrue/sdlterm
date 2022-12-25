@@ -1,6 +1,7 @@
 #include "childprocess.h"
 #include <Windows.h>
 #include <algorithm>
+#include <iostream>
 #include <mutex>
 #include <process.h>
 #include <stdexcept>
@@ -14,6 +15,39 @@ struct Context {
   std::mutex mtx_;
   HANDLE inpipe_ = INVALID_HANDLE_VALUE;
   HANDLE outpipe_ = INVALID_HANDLE_VALUE;
+
+  HRESULT CreatePseudoConsoleAndPipes() {
+    HRESULT hr{E_UNEXPECTED};
+    HANDLE hPipePTYIn{INVALID_HANDLE_VALUE};
+    HANDLE hPipePTYOut{INVALID_HANDLE_VALUE};
+
+    // Create the pipes to which the ConPTY will connect
+    if (CreatePipe(&hPipePTYIn, &outpipe_, NULL, 0) &&
+        CreatePipe(&inpipe_, &hPipePTYOut, NULL, 0)) {
+      // Determine required size of Pseudo Console
+      COORD consoleSize{};
+      CONSOLE_SCREEN_BUFFER_INFO csbi{};
+      HANDLE hConsole{GetStdHandle(STD_OUTPUT_HANDLE)};
+      if (GetConsoleScreenBufferInfo(hConsole, &csbi)) {
+        consoleSize.X = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+        consoleSize.Y = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+      }
+
+      // Create the Pseudo Console of the required size, attached to the PTY-end
+      // of the pipes
+      hr = CreatePseudoConsole(consoleSize, hPipePTYIn, hPipePTYOut, 0, &hpc_);
+
+      // Note: We can close the handles to the PTY-end of the pipes here
+      // because the handles are dup'ed into the ConHost and will be released
+      // when the ConPTY is destroyed.
+      if (INVALID_HANDLE_VALUE != hPipePTYOut)
+        CloseHandle(hPipePTYOut);
+      if (INVALID_HANDLE_VALUE != hPipePTYIn)
+        CloseHandle(hPipePTYIn);
+    }
+
+    return hr;
+  }
 
   void Enqueue(const char *buf, DWORD len) {
     if (len == 0) {
@@ -62,40 +96,8 @@ static void __cdecl PipeListener(LPVOID p) {
     context->Enqueue(szBuffer, BUFF_SIZE);
 
   } while (fRead && dwBytesRead >= 0);
-}
 
-static HRESULT CreatePseudoConsoleAndPipes(HPCON *phPC, HANDLE *phPipeIn,
-                                           HANDLE *phPipeOut) {
-  HRESULT hr{E_UNEXPECTED};
-  HANDLE hPipePTYIn{INVALID_HANDLE_VALUE};
-  HANDLE hPipePTYOut{INVALID_HANDLE_VALUE};
-
-  // Create the pipes to which the ConPTY will connect
-  if (CreatePipe(&hPipePTYIn, phPipeOut, NULL, 0) &&
-      CreatePipe(phPipeIn, &hPipePTYOut, NULL, 0)) {
-    // Determine required size of Pseudo Console
-    COORD consoleSize{};
-    CONSOLE_SCREEN_BUFFER_INFO csbi{};
-    HANDLE hConsole{GetStdHandle(STD_OUTPUT_HANDLE)};
-    if (GetConsoleScreenBufferInfo(hConsole, &csbi)) {
-      consoleSize.X = csbi.srWindow.Right - csbi.srWindow.Left + 1;
-      consoleSize.Y = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
-    }
-
-    // Create the Pseudo Console of the required size, attached to the PTY-end
-    // of the pipes
-    hr = CreatePseudoConsole(consoleSize, hPipePTYIn, hPipePTYOut, 0, phPC);
-
-    // Note: We can close the handles to the PTY-end of the pipes here
-    // because the handles are dup'ed into the ConHost and will be released
-    // when the ConPTY is destroyed.
-    if (INVALID_HANDLE_VALUE != hPipePTYOut)
-      CloseHandle(hPipePTYOut);
-    if (INVALID_HANDLE_VALUE != hPipePTYIn)
-      CloseHandle(hPipePTYIn);
-  }
-
-  return hr;
+  std::cout << "PipeListener finished." << std::endl;
 }
 
 // Initializes the specified startup info struct with the required properties
@@ -138,8 +140,7 @@ ChildProcess::~ChildProcess() {}
 bool ChildProcess::Launch(const char *exec, char *const argv[]) {
 
   //  Create the Pseudo Console and pipes to it
-  auto hr =
-      CreatePseudoConsoleAndPipes(&context_.hpc_, &context_.inpipe_, &context_.outpipe_);
+  auto hr = context_.CreatePseudoConsoleAndPipes();
   if (FAILED(hr)) {
     return false;
   }
@@ -151,7 +152,8 @@ bool ChildProcess::Launch(const char *exec, char *const argv[]) {
 
   // Initialize the necessary startup info struct
   STARTUPINFOEXA startupInfo{};
-  if (FAILED(InitializeStartupInfoAttachedToPseudoConsole(&startupInfo, context_.hpc_))) {
+  if (FAILED(InitializeStartupInfoAttachedToPseudoConsole(&startupInfo,
+                                                          context_.hpc_))) {
     return false;
   }
 
@@ -199,7 +201,12 @@ bool ChildProcess::Launch(const char *exec, char *const argv[]) {
 
   return true;
 }
-bool ChildProcess::Closed() const { return false; }
+bool ChildProcess::Closed() const {
+
+  //  WaitForSingleObject(piClient.hThread, 10 * 1000);
+
+  return false;
+}
 void ChildProcess::Write(const char *buf, size_t size) {
   DWORD write_size;
   WriteFile(context_.outpipe_, buf, size, &write_size, NULL);
