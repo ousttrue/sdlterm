@@ -33,7 +33,7 @@ void ChildProcess::NotifyTermSize(uint16_t rows, uint16_t cols) {
   ioctl(childfd_, TIOCSWINSZ, &ws);
 }
 
-void ChildProcess::HandleOutputs() {
+const char *ChildProcess::Read(size_t *pSize) {
   fd_set rfds;
   FD_ZERO(&rfds);
   FD_SET(childfd_, &rfds);
@@ -43,13 +43,11 @@ void ChildProcess::HandleOutputs() {
   tv.tv_usec = 50000;
 
   if (select(childfd_ + 1, &rfds, NULL, NULL, &tv) > 0) {
-    char line[256];
-    int n;
-    if ((n = read(childfd_, line, sizeof(line))) > 0) {
-      this->OutputCallback(line, n);
-      // vterm_screen_flush_damage(this->screen);
-    }
+    *pSize = read(childfd_, ReadBuffer, sizeof(ReadBuffer));
+  } else {
+    *pSize = 0;
   }
+  return ReadBuffer;
 }
 
 static int childState = 0;

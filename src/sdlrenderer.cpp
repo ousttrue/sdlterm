@@ -4,8 +4,12 @@
 SDLRenderer::SDLRenderer(SDL_Renderer *renderer) : renderer_(renderer) {}
 SDLRenderer::~SDLRenderer() {
   std::cout << "SDLRenderer::~SDLRenderer\n";
-  FOX_CloseFont(this->font_bold);
-  FOX_CloseFont(this->font_regular);
+  if (font_bold) {
+    FOX_CloseFont(this->font_bold);
+  }
+  if (font_regular) {
+    FOX_CloseFont(this->font_regular);
+  }
   SDL_DestroyRenderer(this->renderer_);
 }
 std::shared_ptr<SDLRenderer> SDLRenderer::Create(SDL_Window *window, int index,
