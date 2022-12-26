@@ -3,32 +3,28 @@
 #include "term_config.h"
 #include <SDL.h>
 #include <functional>
-#include <memory>
 
 class SDLTermWindow {
-  SDL_Window *window_;
   SDL_Cursor *pointer_;
   SDL_Surface *icon_;
   const Uint8 *keys_;
   SDL_Rect mouse_rect_;
   bool mouse_down_;
   TERM_Config cfg_;
+  SDL_Window *window_;
+  int width_ = 0;
+  int height_ = 0;
 
 public:
   ChildProcess child_;
   std::function<void(const char *, size_t)> ChildOutputCallback;
-  std::shared_ptr<class SDLRenderer> renderer_;
-  std::function<uint32_t(int row, int col, struct CellState *)> GetCellCallback;
-  std::function<void(int rows, int cols)> RowsColsChanged;
-  std::function<size_t(char *buf, size_t len, const struct TERM_Rect &rect)>
-      GetTextCallback;
 
   SDLTermWindow();
   ~SDLTermWindow();
-  bool Initialize(TERM_Config *cfg, const char *title);
+  SDL_Window *Initialize(TERM_Config *cfg, const char *title);
+  int Width() const { return width_; }
+  int Height() const { return height_; }
   bool HandleEvents();
-  void Update();
-  void Resize(int width, int height);
 
 private:
   void HandleKeyEvent(SDL_Event *event);

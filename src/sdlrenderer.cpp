@@ -12,39 +12,33 @@ SDLRenderer::~SDLRenderer() {
   }
   SDL_DestroyRenderer(this->renderer_);
 }
-std::shared_ptr<SDLRenderer> SDLRenderer::Create(SDL_Window *window, 
-                                                 const char *fontpattern,
-                                                 int fontsize,
-                                                 const char *boldfontpattern) {
+std::shared_ptr<SDLRenderer> SDLRenderer::Create(SDL_Window *window) {
   auto renderer = SDL_CreateRenderer(window, -1, 0);
   if (!renderer) {
     return nullptr;
   }
 
   auto ptr = std::shared_ptr<SDLRenderer>(new SDLRenderer(renderer));
-
-  ptr->font_regular = FOX_OpenFont(ptr->renderer_, fontpattern, fontsize);
-  if (!ptr->font_regular) {
-    return nullptr;
-  }
-  ptr->fontpattern = fontpattern;
-  ptr->font_metrics = FOX_QueryFontMetrics(ptr->font_regular);
-
-  ptr->font_bold = FOX_OpenFont(ptr->renderer_, boldfontpattern, fontsize);
-  if (!ptr->font_bold) {
-    return nullptr;
-  }
-  ptr->boldfontpattern = boldfontpattern;
-
-  ptr->cursor.visible = true;
-  ptr->cursor.active = true;
-  ptr->cursor.ticks = 0;
-
   ptr->ticks = SDL_GetTicks();
-  ptr->bell.active = false;
-  ptr->bell.ticks = 0;
-
   return ptr;
+}
+
+bool SDLRenderer::LoadFont(const char *fontpattern, int fontsize,
+                           const char *boldfontpattern) {
+  this->font_regular = FOX_OpenFont(this->renderer_, fontpattern, fontsize);
+  if (!this->font_regular) {
+    return false;
+  }
+  this->fontpattern = fontpattern;
+  this->font_metrics = FOX_QueryFontMetrics(this->font_regular);
+
+  this->font_bold = FOX_OpenFont(this->renderer_, boldfontpattern, fontsize);
+  if (!this->font_bold) {
+    return false;
+  }
+  this->boldfontpattern = boldfontpattern;
+
+  return true;
 }
 
 bool SDLRenderer::ResizeFont(int size) {
@@ -92,8 +86,7 @@ bool SDLRenderer::BeginRender() {
   return screen_render;
 }
 
-void SDLRenderer::EndRender(bool screen_render, int width, int height,
-                            bool mouse_clicked, const SDL_Rect &mouse_rect) {
+void SDLRenderer::EndRender(bool screen_render, int width, int height) {
   if (screen_render) {
     RenderCursor();
     this->dirty = false;
@@ -104,9 +97,9 @@ void SDLRenderer::EndRender(bool screen_render, int width, int height,
     }
   }
 
-  if (mouse_clicked) {
-    SDL_RenderDrawRect(this->renderer_, &mouse_rect);
-  }
+  // if (mouse_clicked) {
+  //   SDL_RenderDrawRect(this->renderer_, &mouse_rect);
+  // }
 
   SDL_RenderPresent(this->renderer_);
 }

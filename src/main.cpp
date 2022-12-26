@@ -29,40 +29,63 @@ int main(int argc, char *argv[]) {
   }
 
   SDLApp app;
-  VTermApp vterm;
-  vterm.Initialize(cfg.rows, cfg.columns);
 
   SDLTermWindow window;
-  window.RowsColsChanged = std::bind(
-      &VTermApp::Resize, &vterm, std::placeholders::_1, std::placeholders::_2);
-  if (!window.Initialize(&cfg, PROGNAME)) {
+  auto window_handle = window.Initialize(&cfg, PROGNAME);
+  if (!window_handle) {
     return 2;
   }
 
+  auto renderer = SDLRenderer::Create(window_handle);
+  if (!renderer) {
+    return 3;
+  }
+  if (!renderer->LoadFont(cfg.font, cfg.fontsize, cfg.boldfont)) {
+    return 4;
+  }
+  int rows = window.Height() / renderer->font_metrics->height;
+  int cols = window.Width() / renderer->font_metrics->max_advance;
+
+  VTermApp vterm;
+  vterm.Initialize(rows, cols);
+
   // vterm -> window
-  vterm.BellCallback = std::bind(&SDLRenderer::SetBell, window.renderer_.get());
-  vterm.MoveCursorCallback = std::bind(
-      &SDLRenderer::MoveCursor, window.renderer_.get(), std::placeholders::_1,
-      std::placeholders::_2, std::placeholders::_3);
+  vterm.BellCallback = std::bind(&SDLRenderer::SetBell, renderer.get());
+  vterm.MoveCursorCallback =
+      std::bind(&SDLRenderer::MoveCursor, renderer.get(), std::placeholders::_1,
+                std::placeholders::_2, std::placeholders::_3);
 
   // childprocess output
-  window.ChildOutputCallback = [&window, &vterm](const char *bytes,
-                                                 size_t len) {
+  window.ChildOutputCallback = [renderer = renderer.get(),
+                                &vterm](const char *bytes, size_t len) {
     vterm.Write(bytes, len);
-    window.renderer_->SetDirty();
+    renderer->SetDirty();
   };
 
-  // window -> vterm
-  window.GetCellCallback =
-      std::bind(&VTermApp::Cell, &vterm, std::placeholders::_1,
-                std::placeholders::_2, std::placeholders::_3);
-
-  window.GetTextCallback =
-      std::bind(&VTermApp::GetText, &vterm, std::placeholders::_1,
-                std::placeholders::_2, std::placeholders::_3);
-
   while (window.HandleEvents()) {
-    window.Update();
+    // update
+    int new_cols = window.Width() / renderer->font_metrics->max_advance;
+    int new_rows = window.Height() / renderer->font_metrics->height;
+    if (new_rows != rows || new_cols != cols) {
+      rows = new_rows;
+      cols = new_cols;
+      vterm.Resize(rows, cols);
+      window.child_.NotifyTermSize(rows, cols);
+    }
+
+    // render
+    auto render_screen = renderer->BeginRender();
+    if (render_screen) {
+      for (int y = 0; y < rows; y++) {
+        for (int x = 0; x < cols; x++) {
+          CellState cell;
+          if (auto ch = vterm.Cell(y, x, &cell)) {
+            renderer->RenderCell(x, y, ch, cell);
+          }
+        }
+      }
+    }
+    renderer->EndRender(render_screen, cfg.width, cfg.height);
   }
 
   return 0;

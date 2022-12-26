@@ -21,8 +21,6 @@ struct TERM_Config {
   int fontsize = 16;
   int width = 800;
   int height = 600;
-  int rows = 24;
-  int columns = 80;
 
   int ParseArgs(int argc, char **argv);
 };

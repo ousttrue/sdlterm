@@ -17,7 +17,7 @@ struct CellState {
 class SDLRenderer {
   SDL_Renderer *renderer_;
 
-  bool dirty;
+  bool dirty = true;
 
   std::string fontpattern;
   FOX_Font *font_regular;
@@ -25,8 +25,8 @@ class SDLRenderer {
   FOX_Font *font_bold;
   Uint32 ticks;
   struct {
-    Uint32 ticks;
-    bool active;
+    Uint32 ticks = 0;
+    bool active = false;
   } bell;
 
   SDLRenderer(SDL_Renderer *renderer);
@@ -35,21 +35,19 @@ public:
   const FOX_FontMetrics *font_metrics;
   struct {
     SDL_Point position;
-    bool visible;
-    bool active;
-    Uint32 ticks;
+    bool visible = true;
+    bool active = true;
+    Uint32 ticks = 0;
   } cursor;
 
   ~SDLRenderer();
-  static std::shared_ptr<SDLRenderer> Create(SDL_Window *window,
-                                             const char *fontpattern,
-                                             int fontsize,
-                                             const char *boldfontpattern);
+  static std::shared_ptr<SDLRenderer> Create(SDL_Window *window);
+  bool LoadFont(const char *fontpattern, int fontsize,
+                const char *boldfontpattern);
   void SetDirty() { this->dirty = true; }
   bool ResizeFont(int d);
   bool BeginRender();
-  void EndRender(bool render_screen, int width, int height, bool mouse_clicked,
-                 const SDL_Rect &mouse_rect);
+  void EndRender(bool render_screen, int width, int height);
   void SetBell() {
     bell.active = true;
     bell.ticks = ticks;

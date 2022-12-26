@@ -103,13 +103,12 @@ SDLTermWindow::SDLTermWindow() {}
 
 SDLTermWindow::~SDLTermWindow() {
   std::cout << "SDLTermWindow::~SDLTermWindow\n";
-  renderer_ = nullptr;
   SDL_FreeSurface(this->icon_);
   SDL_FreeCursor(this->pointer_);
   SDL_DestroyWindow(this->window_);
 }
 
-bool SDLTermWindow::Initialize(TERM_Config *cfg, const char *title) {
+SDL_Window* SDLTermWindow::Initialize(TERM_Config *cfg, const char *title) {
   Uint32 wflags = TERM_GetWindowFlags(cfg);
   if (wflags & SDL_WINDOW_FULLSCREEN) {
     /* Override resolution with display fullscreen resolution */
@@ -122,15 +121,9 @@ bool SDLTermWindow::Initialize(TERM_Config *cfg, const char *title) {
       SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                        cfg->width, cfg->height, wflags);
   if (!this->window_) {
-    return false;
+    return nullptr;
   }
-
-  this->renderer_ =
-      SDLRenderer::Create(window_, cfg->font,
-                          cfg->fontsize, cfg->boldfont);
-  if (!this->renderer_) {
-    return false;
-  }
+  SDL_GetWindowSize(window_, &width_, &height_);
 
   this->keys_ = SDL_GetKeyboardState(NULL);
   SDL_StartTextInput();
@@ -152,18 +145,17 @@ bool SDLTermWindow::Initialize(TERM_Config *cfg, const char *title) {
   this->cfg_ = *cfg;
 
   if (!child_.Launch(cfg->exec, cfg->args)) {
-    return false;
+    return nullptr;
   }
 
-  Resize(cfg->width, cfg->height);
-  renderer_->SetDirty();
-  return true;
+  return window_;
 }
 
 void SDLTermWindow::HandleWindowEvent(SDL_Event *event) {
   switch (event->window.event) {
   case SDL_WINDOWEVENT_SIZE_CHANGED:
-    Resize(event->window.data1, event->window.data2);
+    width_ = event->window.data1;
+    height_ = event->window.data2;
     break;
   }
 }
@@ -297,8 +289,7 @@ bool SDLTermWindow::HandleEvents() {
   {
     size_t read_size;
     auto p = child_.Read(&read_size);
-    if(read_size)
-    {
+    if (read_size) {
       ChildOutputCallback(p, read_size);
     }
   }
@@ -340,64 +331,40 @@ bool SDLTermWindow::HandleEvents() {
       }
       break;
 
-    case SDL_MOUSEBUTTONUP:
-      if (event.button.button == SDL_BUTTON_RIGHT) {
-        // paste from clipboard
-        char *clipboard = SDL_GetClipboardText();
-        child_.Write(clipboard, SDL_strlen(clipboard));
-        SDL_free(clipboard);
-      } else if (event.button.button == SDL_BUTTON_LEFT) {
-        // copy to clipboard
-        auto rect = this->renderer_->TermRect(this->mouse_rect_);
-        size_t n =
-            GetTextCallback(clipboardbuffer, sizeof(clipboardbuffer), rect);
-        if (n >= sizeof(clipboardbuffer)) {
-          n = sizeof(clipboardbuffer) - 1;
-        }
-        clipboardbuffer[n] = '\0';
-        SDL_SetClipboardText(clipboardbuffer);
-        this->mouse_down_ = false;
-      }
-      break;
+      // case SDL_MOUSEBUTTONUP:
+      //   if (event.button.button == SDL_BUTTON_RIGHT) {
+      //     // paste from clipboard
+      //     char *clipboard = SDL_GetClipboardText();
+      //     child_.Write(clipboard, SDL_strlen(clipboard));
+      //     SDL_free(clipboard);
+      //   } else if (event.button.button == SDL_BUTTON_LEFT) {
+      //     // copy to clipboard
+      //     auto rect = this->renderer_->TermRect(this->mouse_rect_);
+      //     size_t n =
+      //         GetTextCallback(clipboardbuffer, sizeof(clipboardbuffer),
+      //         rect);
+      //     if (n >= sizeof(clipboardbuffer)) {
+      //       n = sizeof(clipboardbuffer) - 1;
+      //     }
+      //     clipboardbuffer[n] = '\0';
+      //     SDL_SetClipboardText(clipboardbuffer);
+      //     this->mouse_down_ = false;
+      //   }
+      //   break;
 
-    case SDL_MOUSEWHEEL: {
-      int size = this->cfg_.fontsize + event.wheel.y;
-      renderer_->ResizeFont(size);
-      Resize(this->cfg_.width, this->cfg_.height);
-      this->cfg_.fontsize = size;
-      break;
-    }
+      // case SDL_MOUSEWHEEL: {
+      //   int size = this->cfg_.fontsize + event.wheel.y;
+      //   renderer_->ResizeFont(size);
+      //   Resize(this->cfg_.width, this->cfg_.height);
+      //   this->cfg_.fontsize = size;
+      //   break;
+      // }
     }
 
   return true;
 }
 
-void SDLTermWindow::Update() {
-  auto render_screen = this->renderer_->BeginRender();
-  if (render_screen) {
-    for (int y = 0; y < this->cfg_.rows; y++) {
-      for (int x = 0; x < this->cfg_.columns; x++) {
-        CellState cell;
-        if (auto ch = GetCellCallback(y, x, &cell)) {
-          this->renderer_->RenderCell(x, y, ch, cell);
-        }
-      }
-    }
-  }
-  this->renderer_->EndRender(render_screen, this->cfg_.width, this->cfg_.height,
-                             this->mouse_down_, this->mouse_rect_);
-}
-
-void SDLTermWindow::Resize(int width, int height) {
-  int cols = width / (this->renderer_->font_metrics->max_advance);
-  int rows = height / this->renderer_->font_metrics->height;
-  this->cfg_.width = width;
-  this->cfg_.height = height;
-  if (rows != this->cfg_.rows || cols != this->cfg_.columns) {
-    this->cfg_.rows = rows;
-    this->cfg_.columns = cols;
-    this->RowsColsChanged(this->cfg_.rows, this->cfg_.columns);
-
-    child_.NotifyTermSize(this->cfg_.rows, this->cfg_.columns);
-  }
-}
+// void SDLTermWindow::Resize(int width, int height) {
+//   this->cfg_.width = width;
+//   this->cfg_.height = height;
+// }

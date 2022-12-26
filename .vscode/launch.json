@@ -20,7 +20,12 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/Debug/bin/sdlterm",
-            "args": [],
+            "args": [
+                "-f",
+                "${env:HOME}/.fonts/HackGenNerdConsole-Regular.ttf",
+                "-b",
+                "${env:HOME}/.fonts/HackGenNerdConsole-Regular.ttf",
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
