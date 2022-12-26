@@ -12,11 +12,11 @@ SDLRenderer::~SDLRenderer() {
   }
   SDL_DestroyRenderer(this->renderer_);
 }
-std::shared_ptr<SDLRenderer> SDLRenderer::Create(SDL_Window *window, int index,
+std::shared_ptr<SDLRenderer> SDLRenderer::Create(SDL_Window *window, 
                                                  const char *fontpattern,
                                                  int fontsize,
                                                  const char *boldfontpattern) {
-  auto renderer = SDL_CreateRenderer(window, index, 0);
+  auto renderer = SDL_CreateRenderer(window, -1, 0);
   if (!renderer) {
     return nullptr;
   }

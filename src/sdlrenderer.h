@@ -41,7 +41,7 @@ public:
   } cursor;
 
   ~SDLRenderer();
-  static std::shared_ptr<SDLRenderer> Create(SDL_Window *window, int index,
+  static std::shared_ptr<SDLRenderer> Create(SDL_Window *window,
                                              const char *fontpattern,
                                              int fontsize,
                                              const char *boldfontpattern);

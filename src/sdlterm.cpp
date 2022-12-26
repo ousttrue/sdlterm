@@ -79,23 +79,6 @@ static Uint32 TERM_GetWindowFlags(TERM_Config *cfg) {
   return flags;
 }
 
-static int TERM_GetRendererIndex(TERM_Config *cfg) {
-  int renderer_index = -1;
-  if (cfg->renderer != NULL) {
-    int num = SDL_GetNumRenderDrivers();
-    for (int i = 0; i < num; i++) {
-      SDL_RendererInfo info;
-      SDL_GetRenderDriverInfo(i, &info);
-      if (!strcmp(cfg->renderer, info.name)) {
-        renderer_index = i;
-        break;
-      }
-    }
-  }
-
-  return renderer_index;
-}
-
 static void swap(int *a, int *b) {
   int tmp = *a;
   *a = *b;
@@ -143,8 +126,8 @@ bool SDLTermWindow::Initialize(TERM_Config *cfg, const char *title) {
   }
 
   this->renderer_ =
-      SDLRenderer::Create(window_, TERM_GetRendererIndex(cfg), cfg->fontpattern,
-                          cfg->fontsize, cfg->boldfontpattern);
+      SDLRenderer::Create(window_, cfg->font,
+                          cfg->fontsize, cfg->boldfont);
   if (!this->renderer_) {
     return false;
   }

@@ -24,7 +24,6 @@ static const char help[] = {
     "  -f\tSet regular font via path (fontconfig pattern not yet supported)\n"
     "  -b\tSet bold font via path (fontconfig pattern not yet supported)\n"
     "  -s\tSet fontsize\n"
-    "  -r\tSet SDL renderer backend\n"
     "  -l\tList available SDL renderer backends\n"
     "  -w\tSet SDL window flags\n"
     "  -e\tSet child process executable path\n"};
@@ -66,15 +65,11 @@ int TERM_Config::ParseArgs(int argc, char **argv) {
       break;
     case 'f':
       if (optarg != NULL)
-        this->fontpattern = optarg;
+        this->font = optarg;
       break;
     case 'b':
       if (optarg != NULL)
-        this->boldfontpattern = optarg;
-      break;
-    case 'r':
-      if (optarg != NULL)
-        this->renderer = optarg;
+        this->boldfont = optarg;
       break;
     case 'w':
       if (optarg != NULL) {

@@ -6,17 +6,6 @@
 #include <functional>
 #include <stdexcept>
 
-#ifdef _MSC_VER
-auto FONT = "C:/Windows/Fonts/consola.ttf";
-auto BOLD_FONT = "C:/Windows/Fonts/consolab.ttf";
-// auto SHELL = "pwsh.exe";
-auto SHELL = "cmd.exe";
-#else
-auto FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf";
-auto BOLD_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf";
-auto SHELL = "/bin/bash";
-#endif
-
 struct SDLApp {
   SDLApp() {
     if (SDL_Init(SDL_INIT_VIDEO)) {
@@ -34,20 +23,7 @@ struct SDLApp {
 };
 
 int main(int argc, char *argv[]) {
-
-  TERM_Config cfg = {.exec = SHELL,
-                     .args = NULL,
-                     .fontpattern = FONT,
-                     .boldfontpattern = BOLD_FONT,
-                     .renderer = NULL,
-                     .windowflags = {NULL},
-                     .nWindowFlags = 0,
-                     .fontsize = 16,
-                     .width = 800,
-                     .height = 600,
-                     .rows = 24,
-                     .columns = 80};
-
+  TERM_Config cfg = {};
   if (cfg.ParseArgs(argc, argv)) {
     return 1;
   }
@@ -71,7 +47,7 @@ int main(int argc, char *argv[]) {
 
   // childprocess output
   window.ChildOutputCallback = [&window, &vterm](const char *bytes,
-                                                   size_t len) {
+                                                 size_t len) {
     vterm.Write(bytes, len);
     window.renderer_->SetDirty();
   };
