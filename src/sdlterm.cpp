@@ -16,6 +16,7 @@
 #include <SDL_video.h>
 #include <iostream>
 #include <vterm.h>
+#include <string.h>
 
 #define lengthof(f) (sizeof(f) / sizeof(f[0]))
 

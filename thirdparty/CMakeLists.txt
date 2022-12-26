@@ -2,7 +2,7 @@ include(FetchContent)
 FetchContent_Declare(
   sdl
   GIT_REPOSITORY https://github.com/libsdl-org/SDL
-  GIT_TAG release-2.26.1
+  GIT_TAG release-2.0.22
   GIT_PROGRESS TRUE)
 
 FetchContent_Declare(
@@ -11,7 +11,13 @@ FetchContent_Declare(
   GIT_TAG VER-2-10-0
   GIT_PROGRESS TRUE)
 
-FetchContent_MakeAvailable(sdl freetype2)
+FetchContent_Declare(
+  sdl_ttf
+  GIT_REPOSITORY https://github.com/libsdl-org/SDL_ttf
+  GIT_TAG release-2.20.1
+  GIT_PROGRESS TRUE)
+
+FetchContent_MakeAvailable(sdl freetype2 sdl_ttf)
 
 FetchContent_Populate(
   vterm URL https://www.leonerd.org.uk/code/libvterm/libvterm-0.3.tar.gz)
