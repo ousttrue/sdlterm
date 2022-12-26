@@ -2,10 +2,12 @@
 #include "sdlrenderer.h"
 #include "sdlterm.h"
 #include "term_config.h"
+#include "vterm.h"
 #include "vtermapp.h"
 #include <SDL_fox.h>
 #include <functional>
 #include <stdexcept>
+#include <iostream>
 
 struct SDLApp {
   SDLApp() {
@@ -73,6 +75,7 @@ int main(int argc, char *argv[]) {
       auto p = child.Read(&read_size);
       if (read_size) {
         vterm.Write(p, read_size);
+        renderer->SetDirty();
       }
     }
 
@@ -80,7 +83,7 @@ int main(int argc, char *argv[]) {
     if (!window.keyInputBuffer_.empty()) {
       child.Write(window.keyInputBuffer_.data(), window.keyInputBuffer_.size());
       window.keyInputBuffer_.clear();
-      renderer->SetDirty();
+      // renderer->SetDirty();
     }
 
     // window size to rows & cols
@@ -89,8 +92,10 @@ int main(int argc, char *argv[]) {
     if (new_rows != rows || new_cols != cols) {
       rows = new_rows;
       cols = new_cols;
+      std::cout << "rows x cols: " << rows << " x " << cols << std::endl;
       vterm.Resize(rows, cols);
       child.NotifyTermSize(rows, cols);
+      renderer->SetDirty();
     }
 
     // render vterm
@@ -98,9 +103,12 @@ int main(int argc, char *argv[]) {
     if (render_screen) {
       for (int y = 0; y < rows; y++) {
         for (int x = 0; x < cols; x++) {
-          CellState cell;
-          if (auto ch = vterm.Cell(y, x, &cell)) {
-            renderer->RenderCell(x, y, ch, cell);
+          VTermPos pos = {
+              .row = y,
+              .col = x,
+          };
+          if (auto cell = vterm.Cell(pos)) {
+            renderer->RenderCell(pos, *cell);
           }
         }
       }

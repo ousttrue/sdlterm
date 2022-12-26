@@ -8,6 +8,7 @@ class VTermApp {
   VTerm *vterm = nullptr;
   VTermScreen *screen = nullptr;
   VTermState *termstate = nullptr;
+  VTermScreenCell cell = {};
 
 public:
   std::function<void()> BellCallback;
@@ -18,5 +19,5 @@ public:
   void Write(const char *bytes, size_t len);
   size_t GetText(char *buffer, size_t len, const TERM_Rect &rect);
   void Resize(int rows, int cols);
-  uint32_t Cell(int row, int col, struct CellState *pCell);
+  const VTermScreenCell *Cell(const VTermPos &pos);
 };

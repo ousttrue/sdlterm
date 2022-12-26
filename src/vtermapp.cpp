@@ -1,6 +1,7 @@
 #include "vtermapp.h"
 #include "TERM_Rect.h"
 #include "sdlrenderer.h"
+#include "vterm.h"
 #include <iostream>
 
 int damage(VTermRect rect, void *user) {
@@ -66,23 +67,14 @@ size_t VTermApp::GetText(char *buffer, size_t len, const TERM_Rect &rect) {
                                });
 }
 
-uint32_t VTermApp::Cell(int y, int x, CellState *pCell) {
-  VTermPos pos = {
-      .row = y,
-      .col = x,
-  };
-  VTermScreenCell cell;
-  vterm_screen_get_cell(screen, pos, &cell);
-  Uint32 ch = cell.chars[0];
-  if (ch) {
+const VTermScreenCell *VTermApp::Cell(const VTermPos &pos) {
+  if (vterm_screen_get_cell(screen, pos, &cell)) {
     vterm_state_convert_color_to_rgb(termstate, &cell.fg);
     vterm_state_convert_color_to_rgb(termstate, &cell.bg);
-    pCell->color = {cell.fg.rgb.red, cell.fg.rgb.green, cell.fg.rgb.blue, 255};
-    pCell->attrs_reverse = cell.attrs.reverse;
-    pCell->attrs_bold = cell.attrs.bold;
-    pCell->attrs_italic = cell.attrs.italic;
+    return &cell;
+  } else {
+    return nullptr;
   }
-  return ch;
 }
 
 void VTermApp::Resize(int rows, int cols) { vterm_set_size(vterm, rows, cols); }

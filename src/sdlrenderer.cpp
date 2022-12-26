@@ -1,4 +1,6 @@
 #include "sdlrenderer.h"
+#include "SDL_pixels.h"
+#include "vterm.h"
 #include <iostream>
 
 SDLRenderer::SDLRenderer(SDL_Renderer *renderer) : renderer_(renderer) {}
@@ -113,28 +115,55 @@ void SDLRenderer::RenderCursor() {
   }
 }
 
-void SDLRenderer::RenderCell(int x, int y, uint32_t ch, CellState cell) {
+void SDLRenderer::RenderCell(const VTermPos &pos, const VTermScreenCell &cell) {
   FOX_Font *font = this->font_regular;
-  SDL_Point cursor = {x * this->font_metrics->max_advance,
-                      y * this->font_metrics->height};
+  SDL_Point cursor = {pos.col * this->font_metrics->max_advance,
+                      pos.row * this->font_metrics->height};
 
-  if (cell.attrs_reverse) {
-    SDL_Rect rect = {cursor.x, cursor.y + 4, this->font_metrics->max_advance,
-                     this->font_metrics->height};
-    SDL_SetRenderDrawColor(this->renderer_, cell.color.r, cell.color.g,
-                           cell.color.b, cell.color.a);
-    cell.color.r = ~cell.color.r;
-    cell.color.g = ~cell.color.g;
-    cell.color.b = ~cell.color.b;
-    SDL_RenderFillRect(this->renderer_, &rect);
+  SDL_Color fg = {
+      .r = cell.fg.rgb.red,
+      .g = cell.fg.rgb.green,
+      .b = cell.fg.rgb.blue,
+      .a = 255,
+  };
+  SDL_Color bg = {
+      .r = cell.bg.rgb.red,
+      .g = cell.bg.rgb.green,
+      .b = cell.bg.rgb.blue,
+      .a = 255,
+  };
+  if (cell.attrs.reverse) {
+    // auto tmp = fg;
+    // fg = bg;
+    // bg = tmp;
+    fg.r = ~fg.r;
+    fg.g = ~fg.g;
+    fg.b = ~fg.b;
+    bg.r = ~bg.r;
+    bg.g = ~bg.g;
+    bg.b = ~bg.b;
   }
 
-  if (cell.attrs_bold) {
+  // BG
+  SDL_Rect rect = {cursor.x, cursor.y + 4, this->font_metrics->max_advance,
+                   this->font_metrics->height};
+  SDL_SetRenderDrawColor(this->renderer_, bg.r, bg.g, bg.b, bg.a);
+  SDL_RenderFillRect(this->renderer_, &rect);
+
+  // FG
+  if (cell.attrs.bold) {
     font = this->font_bold;
-  } else if (cell.attrs_italic) {
+  } else if (cell.attrs.italic) {
   }
-
-  SDL_SetRenderDrawColor(this->renderer_, cell.color.r, cell.color.g,
-                         cell.color.b, cell.color.a);
-  FOX_RenderChar(font, ch, 0, &cursor);
+  if (auto ch = cell.chars[0]) {
+    SDL_SetRenderDrawColor(this->renderer_, fg.r, fg.g, fg.b, fg.a);
+    FOX_RenderChar(font, ch, 0, &cursor);
+  }
 }
+// return &cell;
+// Uint32 ch = cell.chars[0];
+// if (ch) {
+//   vterm_state_convert_color_to_rgb(termstate, &cell.fg);
+//   vterm_state_convert_color_to_rgb(termstate, &cell.bg);
+// }
+// return ch;

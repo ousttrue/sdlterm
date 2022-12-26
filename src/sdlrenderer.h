@@ -6,13 +6,7 @@
 #include <SDL_fox.h>
 #include <memory>
 #include <string>
-
-struct CellState {
-  SDL_Color color;
-  bool attrs_reverse;
-  bool attrs_bold;
-  bool attrs_italic;
-};
+#include <vterm.h>
 
 class SDLRenderer {
   SDL_Renderer *renderer_;
@@ -62,7 +56,7 @@ public:
       cursor.active = true;
     }
   }
-  void RenderCell(int x, int y, uint32_t ch, CellState cell);
+  void RenderCell(const VTermPos &pos, const VTermScreenCell &cell);
   TERM_Rect TermRect(const SDL_Rect &rect) const {
     return TERM_Rect::FromMouseRect(rect, this->font_metrics->height,
                                     this->font_metrics->max_advance);
