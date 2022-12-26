@@ -1,3 +1,4 @@
+#include "childprocess.h"
 #include "sdlrenderer.h"
 #include "sdlterm.h"
 #include "term_config.h"
@@ -55,25 +56,44 @@ int main(int argc, char *argv[]) {
       std::bind(&SDLRenderer::MoveCursor, renderer.get(), std::placeholders::_1,
                 std::placeholders::_2, std::placeholders::_3);
 
-  // childprocess output
-  window.ChildOutputCallback = [renderer = renderer.get(),
-                                &vterm](const char *bytes, size_t len) {
-    vterm.Write(bytes, len);
-    renderer->SetDirty();
-  };
+  // child
+  ChildProcess child;
+  if (!child.Launch(cfg.exec, cfg.args)) {
+    return 5;
+  }
 
   while (window.HandleEvents()) {
-    // update
+    if (child.Closed()) {
+      break;
+    }
+
+    // child output to vterm
+    {
+      size_t read_size;
+      auto p = child.Read(&read_size);
+      if (read_size) {
+        vterm.Write(p, read_size);
+      }
+    }
+
+    // window input to child
+    if (!window.keyInputBuffer_.empty()) {
+      child.Write(window.keyInputBuffer_.data(), window.keyInputBuffer_.size());
+      window.keyInputBuffer_.clear();
+      renderer->SetDirty();
+    }
+
+    // window size to rows & cols
     int new_cols = window.Width() / renderer->font_metrics->max_advance;
     int new_rows = window.Height() / renderer->font_metrics->height;
     if (new_rows != rows || new_cols != cols) {
       rows = new_rows;
       cols = new_cols;
       vterm.Resize(rows, cols);
-      window.child_.NotifyTermSize(rows, cols);
+      child.NotifyTermSize(rows, cols);
     }
 
-    // render
+    // render vterm
     auto render_screen = renderer->BeginRender();
     if (render_screen) {
       for (int y = 0; y < rows; y++) {

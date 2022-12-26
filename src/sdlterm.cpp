@@ -108,7 +108,7 @@ SDLTermWindow::~SDLTermWindow() {
   SDL_DestroyWindow(this->window_);
 }
 
-SDL_Window* SDLTermWindow::Initialize(TERM_Config *cfg, const char *title) {
+SDL_Window *SDLTermWindow::Initialize(TERM_Config *cfg, const char *title) {
   Uint32 wflags = TERM_GetWindowFlags(cfg);
   if (wflags & SDL_WINDOW_FULLSCREEN) {
     /* Override resolution with display fullscreen resolution */
@@ -139,15 +139,6 @@ SDL_Window* SDLTermWindow::Initialize(TERM_Config *cfg, const char *title) {
     SDL_SetWindowIcon(this->window_, this->icon_);
   }
 
-  this->mouse_rect_ = {0};
-  this->mouse_down_ = false;
-
-  this->cfg_ = *cfg;
-
-  if (!child_.Launch(cfg->exec, cfg->args)) {
-    return nullptr;
-  }
-
   return window_;
 }
 
@@ -166,7 +157,7 @@ void SDLTermWindow::HandleKeyEvent(SDL_Event *event) {
     int mod = SDL_toupper(event->key.keysym.sym);
     if (mod >= 'A' && mod <= 'Z') {
       char ch = mod - 'A' + 1;
-      child_.Write(&ch, sizeof(ch));
+      keyInputBuffer_.push_back(ch);
       return;
     }
   }
@@ -272,28 +263,30 @@ void SDLTermWindow::HandleKeyEvent(SDL_Event *event) {
   }
 
   if (cmd) {
-    child_.Write(cmd, SDL_strlen(cmd));
+    for (auto p = cmd; *p; ++p) {
+      keyInputBuffer_.push_back(*p);
+    }
   }
 }
 
 bool SDLTermWindow::HandleEvents() {
   SDL_Delay(20);
 
+  // if (child_.Closed()) {
+  //   SDL_Event event;
+  //   event.type = SDL_QUIT;
+  //   SDL_PushEvent(&event);
+  // }
+
+  // {
+  //   size_t read_size;
+  //   auto p = child_.Read(&read_size);
+  //   if (read_size) {
+  //     ChildOutputCallback(p, read_size);
+  //   }
+  // }
+
   SDL_Event event;
-  if (child_.Closed()) {
-    SDL_Event event;
-    event.type = SDL_QUIT;
-    SDL_PushEvent(&event);
-  }
-
-  {
-    size_t read_size;
-    auto p = child_.Read(&read_size);
-    if (read_size) {
-      ChildOutputCallback(p, read_size);
-    }
-  }
-
   while (SDL_PollEvent(&event))
     switch (event.type) {
 
@@ -310,26 +303,28 @@ bool SDLTermWindow::HandleEvents() {
       break;
 
     case SDL_TEXTINPUT:
-      child_.Write(event.edit.text, SDL_strlen(event.edit.text));
-      break;
-
-    case SDL_MOUSEMOTION:
-      if (this->mouse_down_) {
-        this->mouse_rect_.w = event.motion.x - this->mouse_rect_.x;
-        this->mouse_rect_.h = event.motion.y - this->mouse_rect_.y;
+      for (auto p = event.edit.text; *p; ++p) {
+        keyInputBuffer_.push_back(*p);
       }
       break;
 
-    case SDL_MOUSEBUTTONDOWN:
-      if (this->mouse_down_) {
+      // case SDL_MOUSEMOTION:
+      //   if (this->mouse_down_) {
+      //     this->mouse_rect_.w = event.motion.x - this->mouse_rect_.x;
+      //     this->mouse_rect_.h = event.motion.y - this->mouse_rect_.y;
+      //   }
+      //   break;
 
-      } else if (event.button.button == SDL_BUTTON_LEFT) {
-        this->mouse_down_ = true;
-        SDL_GetMouseState(&this->mouse_rect_.x, &this->mouse_rect_.y);
-        this->mouse_rect_.w = 0;
-        this->mouse_rect_.h = 0;
-      }
-      break;
+      // case SDL_MOUSEBUTTONDOWN:
+      //   if (this->mouse_down_) {
+
+      //   } else if (event.button.button == SDL_BUTTON_LEFT) {
+      //     this->mouse_down_ = true;
+      //     SDL_GetMouseState(&this->mouse_rect_.x, &this->mouse_rect_.y);
+      //     this->mouse_rect_.w = 0;
+      //     this->mouse_rect_.h = 0;
+      //   }
+      //   break;
 
       // case SDL_MOUSEBUTTONUP:
       //   if (event.button.button == SDL_BUTTON_RIGHT) {
