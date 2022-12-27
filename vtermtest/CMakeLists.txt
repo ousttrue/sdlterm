@@ -1,3 +1,5 @@
+find_package(ICU COMPONENTS uc io i18n data REQUIRED)
+
 set(TARGET_NAME vtermtest)
 add_executable(${TARGET_NAME} vtermtest.cpp)
 target_link_libraries(
@@ -5,8 +7,9 @@ target_link_libraries(
   PRIVATE SDL2::SDL2
           SDL2::SDL2main
           SDL2_ttf::SDL2_ttf
-          icuio
-          icui18n
-          icuuc
-          icudata
-          vterm)
+          ICU::uc
+          ICU::io
+          ICU::i18n
+          ICU::data
+          vterm
+          freetype)

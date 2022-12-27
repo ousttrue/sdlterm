@@ -9,6 +9,8 @@ FetchContent_Declare(
 # https://github.com/aseprite/freetype2.git GIT_TAG VER-2-10-0 GIT_PROGRESS
 # TRUE)
 
+set(SDL2TTF_VENDORED ON)
+
 FetchContent_Declare(
   sdl_ttf
   GIT_REPOSITORY https://github.com/libsdl-org/SDL_ttf
