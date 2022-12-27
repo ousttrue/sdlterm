@@ -1,0 +1,38 @@
+#ifdef FOND_WIN
+#pragma comment(lib,"opengl32.lib")
+#include <GL/wglext.h>
+
+extern PFNGLTEXSTORAGE2DPROC glTexStorage2D;
+extern PFNGLGENERATEMIPMAPPROC glGenerateMipmap;
+extern PFNGLGENVERTEXARRAYSPROC glGenVertexArrays;
+extern PFNGLGENBUFFERSPROC glGenBuffers;
+extern PFNGLBINDVERTEXARRAYPROC glBindVertexArray;
+extern PFNGLBINDBUFFERPROC glBindBuffer;
+extern PFNGLBUFFERDATAPROC glBufferData;
+extern PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer;
+extern PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray;
+extern PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays;
+extern PFNGLDELETEBUFFERSPROC glDeleteBuffers;
+extern PFNGLDELETEPROGRAMPROC glDeleteProgram;
+extern PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers;
+extern PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers;
+extern PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer;
+extern PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D;
+extern PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus;
+extern PFNGLCREATESHADERPROC glCreateShader;
+extern PFNGLSHADERSOURCEPROC glShaderSource;
+extern PFNGLCOMPILESHADERPROC glCompileShader;
+extern PFNGLGETSHADERIVPROC glGetShaderiv;
+extern PFNGLCREATEPROGRAMPROC glCreateProgram;
+extern PFNGLATTACHSHADERPROC glAttachShader;
+extern PFNGLLINKPROGRAMPROC glLinkProgram;
+extern PFNGLGETPROGRAMIVPROC glGetProgramiv;
+extern PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog;
+extern PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog;
+extern PFNGLDELETESHADERPROC glDeleteShader;
+extern PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation;
+extern PFNGLUSEPROGRAMPROC glUseProgram;
+extern PFNGLUNIFORM4FPROC glUniform4f;
+
+void fond_load_glext();
+#endif

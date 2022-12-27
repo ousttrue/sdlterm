@@ -17,7 +17,15 @@ FetchContent_Declare(
   GIT_TAG release-2.20.1
   GIT_PROGRESS TRUE)
 
-FetchContent_MakeAvailable(sdl sdl_ttf)
+set(BUILD_SHARED_LIBS OFF)
+set(GLFW_BUILD_EXAMPLES OFF)
+set(GLFW_BUILD_TESTS OFF)
+set(GLFW_BUILD_DOCS OFF)
+FetchContent_Declare(
+  glfw
+  GIT_REPOSITORY https://github.com/glfw/glfw.git
+  GIT_TAG 3.3.8)
+FetchContent_MakeAvailable(sdl sdl_ttf glfw)
 
 FetchContent_Populate(
   vterm URL https://www.leonerd.org.uk/code/libvterm/libvterm-0.3.tar.gz)
@@ -36,7 +44,7 @@ add_library(
 target_include_directories(vterm PUBLIC ${vterm_SOURCE_DIR}/include
                                         ${CMAKE_CURRENT_LIST_DIR}/vterm_src)
 
-subdirs(SDL_fox)
+subdirs(SDL_fox libfond)
 
 if(WIN32)
   FetchContent_Populate(

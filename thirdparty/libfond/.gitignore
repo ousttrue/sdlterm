@@ -1,0 +1,6 @@
+build/
+src/shader/*.h
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
