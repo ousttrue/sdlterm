@@ -1,9 +1,10 @@
-#include "childprocess.h"
 #include "sdlrenderer.h"
 #include "term_config.h"
 #include "vterm.h"
 #include "vtermapp.h"
 #include <iostream>
+
+#include <childprocess.h>
 #include <sdl_app.h>
 
 int main(int argc, char *argv[]) {
@@ -38,22 +39,18 @@ int main(int argc, char *argv[]) {
                 std::placeholders::_2, std::placeholders::_3);
 
   // child
-  ChildProcess child;
-  if (!child.Launch(cfg.exec, cfg.args)) {
-    return 5;
-  }
+  termtk::ChildProcess child;
+  child.Launch(rows, cols, cfg.exec);
 
   while (app.NewFrame()) {
-    if (child.Closed()) {
+    if (child.IsClosed()) {
       break;
     }
 
-    // child output to vterm
     {
-      size_t read_size;
-      auto p = child.Read(&read_size);
-      if (read_size) {
-        vterm.Write(p, read_size);
+      auto input = child.Read();
+      if (!input.empty()) {
+        vterm.Write(input.data(), input.size());
         renderer->SetDirty();
       }
     }
@@ -72,7 +69,7 @@ int main(int argc, char *argv[]) {
       cols = new_cols;
       std::cout << "rows x cols: " << rows << " x " << cols << std::endl;
       vterm.Resize(rows, cols);
-      child.NotifyTermSize(rows, cols);
+      // child.NotifyTermSize(rows, cols);
       renderer->SetDirty();
     }
 

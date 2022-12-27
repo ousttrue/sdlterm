@@ -63,11 +63,11 @@ int main(int argc, char **argv) {
   const int rows = 32;
   const int cols = 100;
 
-  ChildProcess child;
-  child.createSubprocessWithPty(rows, cols, getenv("SHELL"), {"-"});
+  termtk::ChildProcess child;
+  child.Launch(rows, cols, getenv("SHELL"), {"-"});
 
   Terminal terminal(rows, cols, font_width, font_height,
-                    &ChildProcess::output_callback, &child);
+                    &termtk::ChildProcess::Write, &child);
 
   auto cellSurface = [font](const VTermScreenCell &cell,
                             SDL_Color color) -> SDL_Surface * {
@@ -98,9 +98,9 @@ int main(int argc, char **argv) {
     return TTF_RenderUTF8_Blended(font, utf8.c_str(), color);
   };
 
-  while (!child.is_end()) {
+  while (!child.IsClosed()) {
     // child output
-    auto input = child.processInput();
+    auto input = child.Read();
     if (!input.empty()) {
       terminal.input_write(input.data(), input.size());
     }
@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
       if (ev.type == SDL_QUIT ||
           (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE &&
            (ev.key.keysym.mod & KMOD_CTRL))) {
-        child.kill();
+        child.Kill();
       } else {
         terminal.processEvent(ev);
       }

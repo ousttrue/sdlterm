@@ -4,7 +4,7 @@ find_package(
   REQUIRED)
 
 set(TARGET_NAME vtermtest)
-add_executable(${TARGET_NAME} main.cpp vtermtest.cpp childprocess.cpp)
+add_executable(${TARGET_NAME} main.cpp vtermtest.cpp)
 target_link_libraries(
   ${TARGET_NAME}
   PRIVATE SDL2::SDL2

@@ -9,7 +9,6 @@ target_compile_definitions(${TARGET_NAME} PRIVATE NOMINMAX)
 if(WIN32)
   target_link_libraries(${TARGET_NAME} PRIVATE getopt)
   target_compile_definitions(${TARGET_NAME} PRIVATE NOMINMAX)
-  target_sources(${TARGET_NAME} PRIVATE childprocess_windows.cpp)
 else()
-  target_sources(${TARGET_NAME} PRIVATE childprocess_unix.cpp)
+
 endif()
