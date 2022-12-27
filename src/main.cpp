@@ -1,29 +1,10 @@
 #include "childprocess.h"
 #include "sdlrenderer.h"
-#include "sdlterm.h"
 #include "term_config.h"
 #include "vterm.h"
 #include "vtermapp.h"
-#include <SDL_fox.h>
-#include <functional>
-#include <stdexcept>
 #include <iostream>
-
-struct SDLApp {
-  SDLApp() {
-    if (SDL_Init(SDL_INIT_VIDEO)) {
-      throw std::runtime_error("SDL_Init");
-    }
-    if (FOX_Init() != FOX_INITIALIZED) {
-      throw std::runtime_error("FOX_Init");
-    }
-  }
-  ~SDLApp() {
-    FOX_Exit();
-
-    SDL_Quit();
-  }
-};
+#include <sdl_app.h>
 
 int main(int argc, char *argv[]) {
   TERM_Config cfg = {};
@@ -31,23 +12,21 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  SDLApp app;
-
-  SDLTermWindow window;
-  auto window_handle = window.Initialize(&cfg, PROGNAME);
-  if (!window_handle) {
+  termtk::SDLApp app;
+  auto window = app.CreateWindow(640, 480, PROGNAME);
+  if (!window) {
     return 2;
   }
 
-  auto renderer = SDLRenderer::Create(window_handle);
+  auto renderer = SDLRenderer::Create(window->Handle());
   if (!renderer) {
     return 3;
   }
   if (!renderer->LoadFont(cfg.font, cfg.fontsize, cfg.boldfont)) {
     return 4;
   }
-  int rows = window.Height() / renderer->font_metrics->height;
-  int cols = window.Width() / renderer->font_metrics->max_advance;
+  int rows = window->Height() / renderer->font_metrics->height;
+  int cols = window->Width() / renderer->font_metrics->max_advance;
 
   VTermApp vterm;
   vterm.Initialize(rows, cols);
@@ -64,7 +43,7 @@ int main(int argc, char *argv[]) {
     return 5;
   }
 
-  while (window.HandleEvents()) {
+  while (app.NewFrame()) {
     if (child.Closed()) {
       break;
     }
@@ -80,15 +59,14 @@ int main(int argc, char *argv[]) {
     }
 
     // window input to child
-    if (!window.keyInputBuffer_.empty()) {
-      child.Write(window.keyInputBuffer_.data(), window.keyInputBuffer_.size());
-      window.keyInputBuffer_.clear();
-      // renderer->SetDirty();
+    auto input = app.DequeueInput();
+    if (!input.empty()) {
+      child.Write(input.data(), input.size());
     }
 
     // window size to rows & cols
-    int new_cols = window.Width() / renderer->font_metrics->max_advance;
-    int new_rows = window.Height() / renderer->font_metrics->height;
+    int new_cols = window->Width() / renderer->font_metrics->max_advance;
+    int new_rows = window->Height() / renderer->font_metrics->height;
     if (new_rows != rows || new_cols != cols) {
       rows = new_rows;
       cols = new_cols;
