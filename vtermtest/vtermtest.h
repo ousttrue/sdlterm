@@ -53,7 +53,8 @@ public:
   void input_write(const char *bytes, size_t len);
   void render(SDL_Renderer *renderer, const SDL_Rect &window_rect,
               const CellSurface &cellSurface, int font_width, int font_height);
-  void processEvent(const SDL_Event &ev);
+  void keyboard_unichar(char c, VTermModifier mod);
+  void keyboard_key(VTermKey key, VTermModifier mod);
 
 private:
   static int damage(VTermRect rect, void *user);
@@ -68,8 +69,6 @@ private:
       damage, moverect, movecursor,  settermprop,
       bell,   resize,   sb_pushline, sb_popline};
 
-  void keyboard_unichar(char c, VTermModifier mod);
-  void keyboard_key(VTermKey key, VTermModifier mod);
   void invalidateTexture();
   int damage(int start_row, int start_col, int end_row, int end_col);
   int moverect(VTermRect dest, VTermRect src);
