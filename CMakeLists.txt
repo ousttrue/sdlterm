@@ -3,4 +3,9 @@ project(sdlterm)
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
-subdirs(thirdparty src vtermtest)
+subdirs(thirdparty src)
+if(WIN32)
+
+else()
+  subdirs(vtermtest)
+endif()
