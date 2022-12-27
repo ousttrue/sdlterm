@@ -1,6 +1,9 @@
 #pragma once
+#include "SDL_pixels.h"
+#include "SDL_surface.h"
 #include <SDL.h>
 #include <SDL_ttf.h>
+#include <functional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -32,52 +35,41 @@ public:
   int getCols() const { return cols; }
 };
 
+using CellSurface =
+    std::function<SDL_Surface *(const VTermScreenCell &cell, SDL_Color color)>;
+
 class Terminal {
   VTerm *vterm_;
   VTermScreen *screen_;
   SDL_Surface *surface_ = NULL;
   SDL_Texture *texture_ = NULL;
   Matrix<unsigned char> matrix_;
-  TTF_Font *font_;
-  int font_width_;
-  int font_height_;
   int fd_;
   bool ringing_ = false;
-
-  const VTermScreenCallbacks screen_callbacks = {
-      damage, moverect, movecursor,  settermprop,
-      bell,   resize,   sb_pushline, sb_popline};
 
   VTermPos cursor_pos_;
 
 public:
-  Terminal(int _fd, int _rows, int _cols, TTF_Font *_font);
+  Terminal(int _fd, int _rows, int _cols, int font_width, int font_height);
   ~Terminal();
   void invalidateTexture();
   void keyboard_unichar(char c, VTermModifier mod);
   void keyboard_key(VTermKey key, VTermModifier mod);
   void input_write(const char *bytes, size_t len);
   int damage(int start_row, int start_col, int end_row, int end_col);
-  int moverect(VTermRect dest, VTermRect src) { return 0; }
+  int moverect(VTermRect dest, VTermRect src);
   int movecursor(VTermPos pos, VTermPos oldpos, int visible);
-  int settermprop(VTermProp prop, VTermValue *val) { return 0; }
+  int settermprop(VTermProp prop, VTermValue *val);
   int bell();
-  int resize(int rows, int cols) { return 0; }
-  int sb_pushline(int cols, const VTermScreenCell *cells) { return 0; }
-  int sb_popline(int cols, VTermScreenCell *cells) { return 0; }
-  void render(SDL_Renderer *renderer, const SDL_Rect &window_rect);
-  void render_cell(VTermPos pos);
+  int resize(int rows, int cols);
+  int sb_pushline(int cols, const VTermScreenCell *cells);
+  int sb_popline(int cols, VTermScreenCell *cells);
+  void render(SDL_Renderer *renderer, const SDL_Rect &window_rect,
+              const CellSurface &cellSurface, int font_width, int font_height);
+  void render_cell(VTermPos pos, const CellSurface &cellSurface, int font_width,
+                   int font_height);
   void processEvent(const SDL_Event &ev);
   void processInput();
-  static void output_callback(const char *s, size_t len, void *user);
-  static int damage(VTermRect rect, void *user);
-  static int moverect(VTermRect dest, VTermRect src, void *user);
-  static int movecursor(VTermPos pos, VTermPos oldpos, int visible, void *user);
-  static int settermprop(VTermProp prop, VTermValue *val, void *user);
-  static int bell(void *user);
-  static int resize(int rows, int cols, void *user);
-  static int sb_pushline(int cols, const VTermScreenCell *cells, void *user);
-  static int sb_popline(int cols, VTermScreenCell *cells, void *user);
 };
 
 std::pair<int, int>

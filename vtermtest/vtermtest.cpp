@@ -1,16 +1,55 @@
 #include "vtermtest.h"
+#include "SDL_video.h"
 #include "vterm.h"
+#include <iostream>
 #include <pty.h>
 #include <string.h>
 #include <sys/wait.h>
 #include <termios.h>
-#include <unicode/normlzr.h>
-#include <unicode/unistr.h>
 #include <unistd.h>
 
-Terminal::Terminal(int _fd, int _rows, int _cols, TTF_Font *_font)
-    : fd_(_fd), matrix_(_rows, _cols), font_(_font),
-      font_height_(TTF_FontHeight(font_)) {
+static int damage(VTermRect rect, void *user) {
+  return ((Terminal *)user)
+      ->damage(rect.start_row, rect.start_col, rect.end_row, rect.end_col);
+}
+
+static int moverect(VTermRect dest, VTermRect src, void *user) {
+  return ((Terminal *)user)->moverect(dest, src);
+}
+
+static int movecursor(VTermPos pos, VTermPos oldpos, int visible, void *user) {
+  return ((Terminal *)user)->movecursor(pos, oldpos, visible);
+}
+
+static int settermprop(VTermProp prop, VTermValue *val, void *user) {
+  return ((Terminal *)user)->settermprop(prop, val);
+}
+
+static int bell(void *user) { return ((Terminal *)user)->bell(); }
+
+static int resize(int rows, int cols, void *user) {
+  return ((Terminal *)user)->resize(rows, cols);
+}
+
+static int sb_pushline(int cols, const VTermScreenCell *cells, void *user) {
+  return ((Terminal *)user)->sb_pushline(cols, cells);
+}
+
+static int sb_popline(int cols, VTermScreenCell *cells, void *user) {
+  return ((Terminal *)user)->sb_popline(cols, cells);
+}
+
+const VTermScreenCallbacks screen_callbacks = {
+    damage, moverect, movecursor,  settermprop,
+    bell,   resize,   sb_pushline, sb_popline};
+
+static void output_callback(const char *s, size_t len, void *user) {
+  write(*(int *)user, s, len);
+}
+
+Terminal::Terminal(int _fd, int _rows, int _cols, int font_width,
+                   int font_height)
+    : fd_(_fd), matrix_(_rows, _cols) {
   vterm_ = vterm_new(_rows, _cols);
   vterm_set_utf8(vterm_, 1);
   vterm_output_set_callback(vterm_, output_callback, (void *)&fd_);
@@ -20,13 +59,13 @@ Terminal::Terminal(int _fd, int _rows, int _cols, TTF_Font *_font)
   vterm_screen_reset(screen_, 1);
 
   matrix_.fill(0);
-  TTF_SizeUTF8(font_, "X", &font_width_, NULL);
   surface_ = SDL_CreateRGBSurfaceWithFormat(
-      0, font_width_ * _cols, font_height_ * _rows, 32, SDL_PIXELFORMAT_RGBA32);
+      0, font_width * _cols, font_height * _rows, 32, SDL_PIXELFORMAT_RGBA32);
 
-  SDL_CreateRGBSurface(0, font_width_, font_height_, 32, 0, 0, 0, 0);
+  SDL_CreateRGBSurface(0, font_width, font_height, 32, 0, 0, 0, 0);
   // SDL_SetSurfaceBlendMode(surface, SDL_BLENDMODE_BLEND);
 }
+
 Terminal::~Terminal() {
   vterm_free(vterm_);
   invalidateTexture();
@@ -43,12 +82,15 @@ void Terminal::invalidateTexture() {
 void Terminal::keyboard_unichar(char c, VTermModifier mod) {
   vterm_keyboard_unichar(vterm_, c, mod);
 }
+
 void Terminal::keyboard_key(VTermKey key, VTermModifier mod) {
   vterm_keyboard_key(vterm_, key, mod);
 }
+
 void Terminal::input_write(const char *bytes, size_t len) {
   vterm_input_write(vterm_, bytes, len);
 }
+
 int Terminal::damage(int start_row, int start_col, int end_row, int end_col) {
   invalidateTexture();
   for (int row = start_row; row < end_row; row++) {
@@ -58,39 +100,86 @@ int Terminal::damage(int start_row, int start_col, int end_row, int end_col) {
   }
   return 0;
 }
-// int moverect(VTermRect dest, VTermRect src) {
-//     return 0;
-// }
+
+int Terminal::moverect(VTermRect dest, VTermRect src) {
+  std::cout << "moverect" << std::endl;
+  return 0;
+}
+
 int Terminal::movecursor(VTermPos pos, VTermPos oldpos, int visible) {
   cursor_pos_ = pos;
   return 0;
 }
-// int settermprop(VTermProp prop, VTermValue *val) {
-//     return 0;
-// }
+
+int Terminal::settermprop(VTermProp prop, VTermValue *val) {
+  switch (prop) {
+  case VTERM_PROP_CURSORVISIBLE:
+    // bool
+    std::cout << "VTERM_PROP_CURSORVISIBLE: " << val->boolean << std::endl;
+    break;
+  case VTERM_PROP_CURSORBLINK:
+    // bool
+    std::cout << "VTERM_PROP_CURSORBLINK: " << val->boolean << std::endl;
+    break;
+  case VTERM_PROP_ALTSCREEN:
+    // bool
+    std::cout << "VTERM_PROP_ALTSCREEN: " << val->boolean << std::endl;
+    break;
+  case VTERM_PROP_TITLE:
+    // string
+    std::cout << "VTERM_PROP_TITLE: " << val->string.str << std::endl;
+    break;
+  case VTERM_PROP_ICONNAME:
+    // string
+    std::cout << "VTERM_PROP_ICONNAME: " << val->string.str << std::endl;
+    break;
+  case VTERM_PROP_REVERSE:
+    // bool
+    std::cout << "VTERM_PROP_REVERSE: " << val->boolean << std::endl;
+    break;
+  case VTERM_PROP_CURSORSHAPE:
+    // number
+    std::cout << "VTERM_PROP_CURSORSHAPE: " << val->number << std::endl;
+    break;
+  case VTERM_PROP_MOUSE:
+    // number
+    std::cout << "VTERM_PROP_MOUSE: " << val->number << std::endl;
+    break;
+  default:
+    std::cout << "unknown prop: " << prop << std::endl;
+  }
+  return 0;
+}
+
 int Terminal::bell() {
   ringing_ = true;
   return 0;
 }
-// int resize(int rows, int cols) {
-//     return 0;
-// }
 
-// int sb_pushline(int cols, const VTermScreenCell *cells) {
-//     return 0;
-// }
+int Terminal::resize(int rows, int cols) {
+  std::cout << "resize" << std::endl;
+  return 0;
+}
 
-// int sb_popline(int cols, VTermScreenCell *cells) {
-//     return 0;
-// }
+int Terminal::sb_pushline(int cols, const VTermScreenCell *cells) {
+  std::cout << "sb_pushline" << std::endl;
+  return 0;
+}
 
-void Terminal::render(SDL_Renderer *renderer, const SDL_Rect &window_rect) {
+int Terminal::sb_popline(int cols, VTermScreenCell *cells) {
+  std::cout << "sb_popline" << std::endl;
+  return 0;
+}
+
+void Terminal::render(SDL_Renderer *renderer, const SDL_Rect &window_rect,
+                      const CellSurface &cellSurface, int font_width,
+                      int font_height) {
   if (!texture_) {
     for (int row = 0; row < matrix_.getRows(); row++) {
       for (int col = 0; col < matrix_.getCols(); col++) {
         if (matrix_(row, col)) {
           VTermPos pos = {row, col};
-          render_cell(pos);
+          render_cell(pos, cellSurface, font_width, font_height);
           matrix_(row, col) = 0;
         }
       }
@@ -103,8 +192,8 @@ void Terminal::render(SDL_Renderer *renderer, const SDL_Rect &window_rect) {
   VTermScreenCell cell;
   vterm_screen_get_cell(screen_, cursor_pos_, &cell);
 
-  SDL_Rect rect = {cursor_pos_.col * font_width_,
-                   cursor_pos_.row * font_height_, font_width_, font_height_};
+  SDL_Rect rect = {cursor_pos_.col * font_width, cursor_pos_.row * font_height,
+                   font_width, font_height};
   // scale cursor
   rect.x = window_rect.x + rect.x * window_rect.w / surface_->w;
   rect.y = window_rect.y + rect.y * window_rect.h / surface_->h;
@@ -124,7 +213,8 @@ void Terminal::render(SDL_Renderer *renderer, const SDL_Rect &window_rect) {
   }
 }
 
-void Terminal::render_cell(VTermPos pos) {
+void Terminal::render_cell(VTermPos pos, const CellSurface &cellSurface,
+                           int font_width, int font_height) {
   VTermScreenCell cell;
   vterm_screen_get_cell(screen_, pos, &cell);
   if (cell.chars[0] == 0xffffffff) {
@@ -150,44 +240,14 @@ void Terminal::render_cell(VTermPos pos) {
     std::swap(color, bgcolor);
   }
 
-  // style
-  int style = TTF_STYLE_NORMAL;
-  if (cell.attrs.bold)
-    style |= TTF_STYLE_BOLD;
-  if (cell.attrs.underline)
-    style |= TTF_STYLE_UNDERLINE;
-  if (cell.attrs.italic)
-    style |= TTF_STYLE_ITALIC;
-  if (cell.attrs.strike)
-    style |= TTF_STYLE_STRIKETHROUGH;
-  if (cell.attrs.blink) { /*TBD*/
-  }
-
   // bg
-  SDL_Rect rect = {pos.col * font_width_, pos.row * font_height_,
-                   font_width_ * cell.width, font_height_};
+  SDL_Rect rect = {pos.col * font_width, pos.row * font_height,
+                   font_width * cell.width, font_height};
   SDL_FillRect(surface_, &rect,
                SDL_MapRGB(surface_->format, bgcolor.r, bgcolor.g, bgcolor.b));
 
   // fg
-  icu::UnicodeString ustr;
-  for (int i = 0; cell.chars[i] != 0 && i < VTERM_MAX_CHARS_PER_CELL; i++) {
-    ustr.append((UChar32)cell.chars[i]);
-  }
-  if (ustr.length() > 0) {
-    UErrorCode status = U_ZERO_ERROR;
-    auto normalizer = icu::Normalizer2::getNFKCInstance(status);
-    if (U_FAILURE(status))
-      throw std::runtime_error("unable to get NFKC normalizer");
-    auto ustr_normalized = normalizer->normalize(ustr, status);
-    std::string utf8;
-    if (U_SUCCESS(status)) {
-      ustr_normalized.toUTF8String(utf8);
-    } else {
-      ustr.toUTF8String(utf8);
-    }
-    TTF_SetFontStyle(font_, style);
-    auto text_surface = TTF_RenderUTF8_Blended(font_, utf8.c_str(), color);
+  if (auto text_surface = cellSurface(cell, color)) {
     SDL_SetSurfaceBlendMode(text_surface, SDL_BLENDMODE_BLEND);
     SDL_BlitSurface(text_surface, NULL, surface_, &rect);
     SDL_FreeSurface(text_surface);
@@ -268,42 +328,6 @@ void Terminal::processInput() {
       input_write(buf, size);
     }
   }
-}
-
-void Terminal::output_callback(const char *s, size_t len, void *user) {
-  write(*(int *)user, s, len);
-}
-
-int Terminal::damage(VTermRect rect, void *user) {
-  return ((Terminal *)user)
-      ->damage(rect.start_row, rect.start_col, rect.end_row, rect.end_col);
-}
-
-int Terminal::moverect(VTermRect dest, VTermRect src, void *user) {
-  return ((Terminal *)user)->moverect(dest, src);
-}
-
-int Terminal::movecursor(VTermPos pos, VTermPos oldpos, int visible,
-                         void *user) {
-  return ((Terminal *)user)->movecursor(pos, oldpos, visible);
-}
-
-int Terminal::settermprop(VTermProp prop, VTermValue *val, void *user) {
-  return ((Terminal *)user)->settermprop(prop, val);
-}
-
-int Terminal::bell(void *user) { return ((Terminal *)user)->bell(); }
-
-int Terminal::resize(int rows, int cols, void *user) {
-  return ((Terminal *)user)->resize(rows, cols);
-}
-
-int Terminal::sb_pushline(int cols, const VTermScreenCell *cells, void *user) {
-  return ((Terminal *)user)->sb_pushline(cols, cells);
-}
-
-int Terminal::sb_popline(int cols, VTermScreenCell *cells, void *user) {
-  return ((Terminal *)user)->sb_popline(cols, cells);
 }
 
 std::pair<int, int>

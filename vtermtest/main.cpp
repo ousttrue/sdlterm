@@ -1,9 +1,29 @@
+#include "SDL_pixels.h"
+#include "SDL_surface.h"
+#include "vterm.h"
 #include "vtermtest.h"
 #include <iostream>
-#include <signal.h>
 #include <sdl_app.h>
+#include <signal.h>
+#include <unicode/normlzr.h>
+#include <unicode/unistr.h>
 
 auto FONT_FILE = "/usr/share/fonts/vlgothic/VL-Gothic-Regular.ttf";
+
+static std::string cp2utf8(const icu::UnicodeString &ustr) {
+  UErrorCode status = U_ZERO_ERROR;
+  auto normalizer = icu::Normalizer2::getNFKCInstance(status);
+  if (U_FAILURE(status))
+    throw std::runtime_error("unable to get NFKC normalizer");
+  auto ustr_normalized = normalizer->normalize(ustr, status);
+  std::string utf8;
+  if (U_SUCCESS(status)) {
+    ustr_normalized.toUTF8String(utf8);
+  } else {
+    ustr.toUTF8String(utf8);
+  }
+  return utf8;
+}
 
 int main(int argc, char **argv) {
   if (argc > 1) {
@@ -18,13 +38,15 @@ int main(int argc, char **argv) {
   }
 
   TTF_Font *font = TTF_OpenFont(FONT_FILE, 48);
-  // TTF_Font* font = TTF_OpenFont("RictyDiminished-Regular.ttf", 48);
   if (font == NULL) {
     std::cerr << "TTF_OpenFont: " << TTF_GetError() << std::endl;
     return 3;
   }
+  int font_height = TTF_FontHeight(font);
+  int font_width;
+  TTF_SizeUTF8(font, "X", &font_width, NULL);
 
-  auto window = app.CreateWindow(1024, 768, "term"); 
+  auto window = app.CreateWindow(1024, 768, "term");
   if (window == NULL) {
     std::cerr << "SDL_CreateWindow: " << SDL_GetError() << std::endl;
     return 4;
@@ -41,10 +63,41 @@ int main(int argc, char **argv) {
   const int cols = 100;
   auto subprocess = createSubprocessWithPty(rows, cols, getenv("SHELL"), {"-"});
 
-  Terminal terminal(subprocess.second /*fd*/, rows, cols, font);
+  Terminal terminal(subprocess.second /*fd*/, rows, cols, font_width,
+                    font_height);
 
   auto pid = subprocess.first;
   std::pair<pid_t, int> rst;
+
+  auto cellSurface = [font](const VTermScreenCell &cell,
+                           SDL_Color color) -> SDL_Surface * {
+    // code points to utf8
+    icu::UnicodeString ustr;
+    for (int i = 0; cell.chars[i] != 0 && i < VTERM_MAX_CHARS_PER_CELL; i++) {
+      ustr.append((UChar32)cell.chars[i]);
+    }
+    if (ustr.length() == 0) {
+      return nullptr;
+    }
+    auto utf8 = cp2utf8(ustr);
+
+    // style
+    int style = TTF_STYLE_NORMAL;
+    if (cell.attrs.bold)
+      style |= TTF_STYLE_BOLD;
+    if (cell.attrs.underline)
+      style |= TTF_STYLE_UNDERLINE;
+    if (cell.attrs.italic)
+      style |= TTF_STYLE_ITALIC;
+    if (cell.attrs.strike)
+      style |= TTF_STYLE_STRIKETHROUGH;
+    if (cell.attrs.blink) { /*TBD*/
+    }
+
+    TTF_SetFontStyle(font, style);
+    return TTF_RenderUTF8_Blended(font, utf8.c_str(), color);
+  };
+
   while ((rst = waitpid(pid, WNOHANG)).first != pid) {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
@@ -53,7 +106,9 @@ int main(int argc, char **argv) {
       if (ev.type == SDL_QUIT ||
           (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE &&
            (ev.key.keysym.mod & KMOD_CTRL))) {
-        kill(pid, SIGTERM);
+        if (kill(pid, SIGKILL) != 0) {
+          std::cout << "fail to kill: " << pid << " => " << errno << std::endl;
+        }
       } else {
         terminal.processEvent(ev);
       }
@@ -62,7 +117,7 @@ int main(int argc, char **argv) {
     terminal.processInput();
 
     SDL_Rect rect = {0, 0, 1024, 768};
-    terminal.render(renderer, rect);
+    terminal.render(renderer, rect, cellSurface, font_width, font_height);
     SDL_RenderPresent(renderer);
   }
   std::cout << "Process exit status: " << rst.second << std::endl;
