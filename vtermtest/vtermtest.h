@@ -33,22 +33,22 @@ public:
 };
 
 class Terminal {
-  VTerm *vterm;
-  VTermScreen *screen;
-  SDL_Surface *surface = NULL;
-  SDL_Texture *texture = NULL;
-  Matrix<unsigned char> matrix;
-  TTF_Font *font;
-  int font_width;
-  int font_height;
-  int fd;
-  bool ringing = false;
+  VTerm *vterm_;
+  VTermScreen *screen_;
+  SDL_Surface *surface_ = NULL;
+  SDL_Texture *texture_ = NULL;
+  Matrix<unsigned char> matrix_;
+  TTF_Font *font_;
+  int font_width_;
+  int font_height_;
+  int fd_;
+  bool ringing_ = false;
 
   const VTermScreenCallbacks screen_callbacks = {
       damage, moverect, movecursor,  settermprop,
       bell,   resize,   sb_pushline, sb_popline};
 
-  VTermPos cursor_pos;
+  VTermPos cursor_pos_;
 
 public:
   Terminal(int _fd, int _rows, int _cols, TTF_Font *_font);
@@ -66,6 +66,7 @@ public:
   int sb_pushline(int cols, const VTermScreenCell *cells) { return 0; }
   int sb_popline(int cols, VTermScreenCell *cells) { return 0; }
   void render(SDL_Renderer *renderer, const SDL_Rect &window_rect);
+  void render_cell(VTermPos pos);
   void processEvent(const SDL_Event &ev);
   void processInput();
   static void output_callback(const char *s, size_t len, void *user);
