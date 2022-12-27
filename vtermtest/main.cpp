@@ -1,12 +1,13 @@
 #include "SDL_pixels.h"
 #include "SDL_surface.h"
+#include "childprocess.h"
 #include "vterm.h"
 #include "vtermtest.h"
 #include <iostream>
-#include <sdl_app.h>
-#include <signal.h>
 #include <unicode/normlzr.h>
 #include <unicode/unistr.h>
+
+#include <sdl_app.h>
 
 auto FONT_FILE = "/usr/share/fonts/vlgothic/VL-Gothic-Regular.ttf";
 
@@ -61,16 +62,15 @@ int main(int argc, char **argv) {
 
   const int rows = 32;
   const int cols = 100;
-  auto subprocess = createSubprocessWithPty(rows, cols, getenv("SHELL"), {"-"});
 
-  Terminal terminal(subprocess.second /*fd*/, rows, cols, font_width,
-                    font_height);
+  ChildProcess child;
+  child.createSubprocessWithPty(rows, cols, getenv("SHELL"), {"-"});
 
-  auto pid = subprocess.first;
-  std::pair<pid_t, int> rst;
+  Terminal terminal(rows, cols, font_width, font_height,
+                    &ChildProcess::output_callback, &child);
 
   auto cellSurface = [font](const VTermScreenCell &cell,
-                           SDL_Color color) -> SDL_Surface * {
+                            SDL_Color color) -> SDL_Surface * {
     // code points to utf8
     icu::UnicodeString ustr;
     for (int i = 0; cell.chars[i] != 0 && i < VTERM_MAX_CHARS_PER_CELL; i++) {
@@ -98,29 +98,32 @@ int main(int argc, char **argv) {
     return TTF_RenderUTF8_Blended(font, utf8.c_str(), color);
   };
 
-  while ((rst = waitpid(pid, WNOHANG)).first != pid) {
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    SDL_RenderClear(renderer);
+  while (!child.is_end()) {
+    // child output
+    auto input = child.processInput();
+    if (!input.empty()) {
+      terminal.input_write(input.data(), input.size());
+    }
+
+    // window event
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
       if (ev.type == SDL_QUIT ||
           (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE &&
            (ev.key.keysym.mod & KMOD_CTRL))) {
-        if (kill(pid, SIGKILL) != 0) {
-          std::cout << "fail to kill: " << pid << " => " << errno << std::endl;
-        }
+        child.kill();
       } else {
         terminal.processEvent(ev);
       }
     }
 
-    terminal.processInput();
-
+    // render
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
     SDL_Rect rect = {0, 0, 1024, 768};
     terminal.render(renderer, rect, cellSurface, font_width, font_height);
     SDL_RenderPresent(renderer);
   }
-  std::cout << "Process exit status: " << rst.second << std::endl;
 
   TTF_Quit();
   return 0;

@@ -4,9 +4,7 @@
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include <functional>
-#include <stdexcept>
-#include <string>
-#include <vector>
+#include <memory>
 #include <vterm.h>
 
 template <typename T> class Matrix {
@@ -41,21 +39,38 @@ using CellSurface =
 class Terminal {
   VTerm *vterm_;
   VTermScreen *screen_;
-  SDL_Surface *surface_ = NULL;
-  SDL_Texture *texture_ = NULL;
+  VTermPos cursor_pos_;
   Matrix<unsigned char> matrix_;
-  int fd_;
   bool ringing_ = false;
 
-  VTermPos cursor_pos_;
+  SDL_Surface *surface_ = NULL;
+  SDL_Texture *texture_ = NULL;
 
 public:
-  Terminal(int _fd, int _rows, int _cols, int font_width, int font_height);
+  Terminal(int _rows, int _cols, int font_width, int font_height,
+           VTermOutputCallback out, void *user);
   ~Terminal();
-  void invalidateTexture();
+  void input_write(const char *bytes, size_t len);
+  void render(SDL_Renderer *renderer, const SDL_Rect &window_rect,
+              const CellSurface &cellSurface, int font_width, int font_height);
+  void processEvent(const SDL_Event &ev);
+
+private:
+  static int damage(VTermRect rect, void *user);
+  static int moverect(VTermRect dest, VTermRect src, void *user);
+  static int movecursor(VTermPos pos, VTermPos oldpos, int visible, void *user);
+  static int settermprop(VTermProp prop, VTermValue *val, void *user);
+  static int bell(void *user);
+  static int resize(int rows, int cols, void *user);
+  static int sb_pushline(int cols, const VTermScreenCell *cells, void *user);
+  static int sb_popline(int cols, VTermScreenCell *cells, void *user);
+  const VTermScreenCallbacks screen_callbacks = {
+      damage, moverect, movecursor,  settermprop,
+      bell,   resize,   sb_pushline, sb_popline};
+
   void keyboard_unichar(char c, VTermModifier mod);
   void keyboard_key(VTermKey key, VTermModifier mod);
-  void input_write(const char *bytes, size_t len);
+  void invalidateTexture();
   int damage(int start_row, int start_col, int end_row, int end_col);
   int moverect(VTermRect dest, VTermRect src);
   int movecursor(VTermPos pos, VTermPos oldpos, int visible);
@@ -64,17 +79,6 @@ public:
   int resize(int rows, int cols);
   int sb_pushline(int cols, const VTermScreenCell *cells);
   int sb_popline(int cols, VTermScreenCell *cells);
-  void render(SDL_Renderer *renderer, const SDL_Rect &window_rect,
-              const CellSurface &cellSurface, int font_width, int font_height);
   void render_cell(VTermPos pos, const CellSurface &cellSurface, int font_width,
                    int font_height);
-  void processEvent(const SDL_Event &ev);
-  void processInput();
 };
-
-std::pair<int, int>
-createSubprocessWithPty(int rows, int cols, const char *prog,
-                        const std::vector<std::string> &args = {},
-                        const char *TERM = "xterm-256color");
-
-std::pair<pid_t, int> waitpid(pid_t pid, int options);

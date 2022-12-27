@@ -2,57 +2,48 @@
 #include "SDL_video.h"
 #include "vterm.h"
 #include <iostream>
-#include <pty.h>
 #include <string.h>
-#include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
 
-static int damage(VTermRect rect, void *user) {
+int Terminal::damage(VTermRect rect, void *user) {
   return ((Terminal *)user)
       ->damage(rect.start_row, rect.start_col, rect.end_row, rect.end_col);
 }
 
-static int moverect(VTermRect dest, VTermRect src, void *user) {
+int Terminal::moverect(VTermRect dest, VTermRect src, void *user) {
   return ((Terminal *)user)->moverect(dest, src);
 }
 
-static int movecursor(VTermPos pos, VTermPos oldpos, int visible, void *user) {
+int Terminal::movecursor(VTermPos pos, VTermPos oldpos, int visible,
+                         void *user) {
   return ((Terminal *)user)->movecursor(pos, oldpos, visible);
 }
 
-static int settermprop(VTermProp prop, VTermValue *val, void *user) {
+int Terminal::settermprop(VTermProp prop, VTermValue *val, void *user) {
   return ((Terminal *)user)->settermprop(prop, val);
 }
 
-static int bell(void *user) { return ((Terminal *)user)->bell(); }
+int Terminal::bell(void *user) { return ((Terminal *)user)->bell(); }
 
-static int resize(int rows, int cols, void *user) {
+int Terminal::resize(int rows, int cols, void *user) {
   return ((Terminal *)user)->resize(rows, cols);
 }
 
-static int sb_pushline(int cols, const VTermScreenCell *cells, void *user) {
+int Terminal::sb_pushline(int cols, const VTermScreenCell *cells, void *user) {
   return ((Terminal *)user)->sb_pushline(cols, cells);
 }
 
-static int sb_popline(int cols, VTermScreenCell *cells, void *user) {
+int Terminal::sb_popline(int cols, VTermScreenCell *cells, void *user) {
   return ((Terminal *)user)->sb_popline(cols, cells);
 }
 
-const VTermScreenCallbacks screen_callbacks = {
-    damage, moverect, movecursor,  settermprop,
-    bell,   resize,   sb_pushline, sb_popline};
-
-static void output_callback(const char *s, size_t len, void *user) {
-  write(*(int *)user, s, len);
-}
-
-Terminal::Terminal(int _fd, int _rows, int _cols, int font_width,
-                   int font_height)
-    : fd_(_fd), matrix_(_rows, _cols) {
+Terminal::Terminal(int _rows, int _cols, int font_width, int font_height,
+                   VTermOutputCallback out, void *user)
+    : matrix_(_rows, _cols) {
   vterm_ = vterm_new(_rows, _cols);
   vterm_set_utf8(vterm_, 1);
-  vterm_output_set_callback(vterm_, output_callback, (void *)&fd_);
+  vterm_output_set_callback(vterm_, out, user);
 
   screen_ = vterm_obtain_screen(vterm_);
   vterm_screen_set_callbacks(screen_, &screen_callbacks, this);
@@ -314,49 +305,4 @@ void Terminal::processEvent(const SDL_Event &ev) {
       break;
     }
   }
-}
-
-void Terminal::processInput() {
-  fd_set readfds;
-  FD_ZERO(&readfds);
-  FD_SET(fd_, &readfds);
-  timeval timeout = {0, 0};
-  if (select(fd_ + 1, &readfds, NULL, NULL, &timeout) > 0) {
-    char buf[4096];
-    auto size = read(fd_, buf, sizeof(buf));
-    if (size > 0) {
-      input_write(buf, size);
-    }
-  }
-}
-
-std::pair<int, int>
-createSubprocessWithPty(int rows, int cols, const char *prog,
-                        const std::vector<std::string> &args,
-                        const char *TERM) {
-  int fd;
-  struct winsize win = {(unsigned short)rows, (unsigned short)cols, 0, 0};
-  auto pid = forkpty(&fd, NULL, NULL, &win);
-  if (pid < 0)
-    throw std::runtime_error("forkpty failed");
-  // else
-  if (!pid) {
-    setenv("TERM", TERM, 1);
-    char **argv = new char *[args.size() + 2];
-    argv[0] = strdup(prog);
-    for (int i = 1; i <= args.size(); i++) {
-      argv[i] = strdup(args[i - 1].c_str());
-    }
-    argv[args.size() + 1] = NULL;
-    if (execvp(prog, argv) < 0)
-      exit(-1);
-  }
-  // else
-  return {pid, fd};
-}
-
-std::pair<pid_t, int> waitpid(pid_t pid, int options) {
-  int status;
-  auto done_pid = waitpid(pid, &status, options);
-  return {done_pid, status};
 }
