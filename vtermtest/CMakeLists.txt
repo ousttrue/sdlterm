@@ -15,4 +15,5 @@ target_link_libraries(
           ICU::i18n
           ICU::data
           vterm
-          freetype)
+          freetype
+          termtk)

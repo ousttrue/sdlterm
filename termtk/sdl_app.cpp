@@ -61,6 +61,7 @@ struct SDLAppImpl {
       throw std::runtime_error("FOX_Init");
     }
 
+    // SDL_ShowCursor(SDL_DISABLE);
     this->pointer_ = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
     if (this->pointer_) {
       SDL_SetCursor(this->pointer_);

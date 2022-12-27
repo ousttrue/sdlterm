@@ -1,6 +1,7 @@
 #include "vtermtest.h"
 #include <iostream>
 #include <signal.h>
+#include <sdl_app.h>
 
 auto FONT_FILE = "/usr/share/fonts/vlgothic/VL-Gothic-Regular.ttf";
 
@@ -9,10 +10,7 @@ int main(int argc, char **argv) {
     FONT_FILE = argv[1];
   }
 
-  if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-    std::cerr << SDL_GetError() << std::endl;
-    return 1;
-  }
+  termtk::SDLApp app;
 
   if (TTF_Init() < 0) {
     std::cerr << "TTF_Init: " << TTF_GetError() << std::endl;
@@ -26,17 +24,14 @@ int main(int argc, char **argv) {
     return 3;
   }
 
-  SDL_ShowCursor(SDL_DISABLE);
-  SDL_Window *window =
-      SDL_CreateWindow("term", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-                       1024, 768, SDL_WINDOW_SHOWN);
+  auto window = app.CreateWindow(1024, 768, "term"); 
   if (window == NULL) {
     std::cerr << "SDL_CreateWindow: " << SDL_GetError() << std::endl;
     return 4;
   }
 
   SDL_Renderer *renderer =
-      SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
+      SDL_CreateRenderer(window->Handle(), -1, SDL_RENDERER_PRESENTVSYNC);
   if (renderer == NULL) {
     std::cerr << "SDL_CreateRenderer: " << SDL_GetError() << std::endl;
     return 5;
@@ -73,6 +68,5 @@ int main(int argc, char **argv) {
   std::cout << "Process exit status: " << rst.second << std::endl;
 
   TTF_Quit();
-  SDL_Quit();
   return 0;
 }
