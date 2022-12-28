@@ -2,42 +2,60 @@
 #include <functional>
 #include <memory>
 #include <stdexcept>
+#include <unordered_set>
 #include <vterm.h>
 
-template <typename T> class Matrix {
-  T *buf;
-  int rows, cols;
+struct PosEqual {
+  constexpr bool operator()(VTermPos lhs, VTermPos rhs) const {
+    return lhs.row == rhs.row && lhs.col == rhs.col;
+  }
+};
+namespace detail // 便利ライブラリを置く名前空間（名前は任意）
+{
+// 複数のハッシュ値を組み合わせて新しいハッシュ値を作る関数
+// 実装出典: Boost.ContainerHash
+// https://github.com/boostorg/container_hash/blob/develop/include/boost/container_hash/hash.hpp
+inline void HashCombineImpl(std::size_t &h, std::size_t k) noexcept {
+  static_assert(sizeof(std::size_t) == 8); // 要 64-bit 環境
+  constexpr std::uint64_t m = 0xc6a4a7935bd1e995;
+  constexpr int r = 47;
+  k *= m;
+  k ^= k >> r;
+  k *= m;
+  h ^= k;
+  h *= m;
+  // Completely arbitrary number, to prevent 0's
+  // from hashing to 0.
+  h += 0xe6546b64;
+}
 
-public:
-  Matrix(int _rows, int _cols) : rows(_rows), cols(_cols) {
-    buf = new T[cols * rows];
+// 複数のハッシュ値を組み合わせて新しいハッシュ値を作る関数
+template <class Type>
+inline void HashCombine(std::size_t &h, const Type &value) noexcept {
+  HashCombineImpl(h, std::hash<Type>{}(value));
+}
+} // namespace detail
+template <>
+struct std::hash<VTermPos> // std::hash の特殊化
+{
+  std::size_t operator()(const VTermPos &p) const noexcept {
+    std::size_t seed = 0;
+    detail::HashCombine(seed, p.row); // ハッシュ値を更新
+    detail::HashCombine(seed, p.col); // ハッシュ値を更新
+    return seed;
   }
-  ~Matrix() { delete buf; }
-  void fill(const T &by) {
-    for (int row = 0; row < rows; row++) {
-      for (int col = 0; col < cols; col++) {
-        buf[cols * row + col] = by;
-      }
-    }
-  }
-  T &operator()(int row, int col) {
-    if (row < 0 || col < 0 || row >= rows || col >= cols)
-      throw std::runtime_error("invalid position");
-    // else
-    return buf[cols * row + col];
-  }
-  int getRows() const { return rows; }
-  int getCols() const { return cols; }
 };
 
+using PosSet = std::unordered_set<VTermPos, std::hash<VTermPos>, PosEqual>;
 class Terminal {
   VTerm *vterm_;
   VTermScreen *screen_;
   VTermPos cursor_pos_;
   mutable VTermScreenCell cell_;
   bool ringing_ = false;
-  bool isInvalidated_ = true;
-  Matrix<unsigned char> matrix_;
+
+  PosSet damaged_;
+  PosSet tmp_;
 
 public:
   Terminal(int _rows, int _cols, int font_width, int font_height,
@@ -46,14 +64,7 @@ public:
   void input_write(const char *bytes, size_t len);
   void keyboard_unichar(char c, VTermModifier mod);
   void keyboard_key(VTermKey key, VTermModifier mod);
-
-  Matrix<unsigned char> *new_frame(bool *ringing) {
-    auto current = isInvalidated_;
-    isInvalidated_ = false;
-    *ringing = ringing_;
-    ringing_ = false;
-    return current ? &matrix_ : nullptr;
-  }
+  const PosSet &new_frame(bool *ringing);
   VTermScreenCell *get_cell(VTermPos pos) const;
   VTermScreenCell *get_cursor(VTermPos *pos) const;
 
@@ -70,7 +81,6 @@ private:
       damage, moverect, movecursor,  settermprop,
       bell,   resize,   sb_pushline, sb_popline};
 
-  void invalidateTexture() { isInvalidated_ = true; }
   int damage(int start_row, int start_col, int end_row, int end_col);
   int moverect(VTermRect dest, VTermRect src);
   int movecursor(VTermPos pos, VTermPos oldpos, int visible);

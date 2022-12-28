@@ -24,6 +24,7 @@ int Terminal::settermprop(VTermProp prop, VTermValue *val, void *user) {
 int Terminal::bell(void *user) { return ((Terminal *)user)->bell(); }
 
 int Terminal::resize(int rows, int cols, void *user) {
+  std::cout << "resize: " << rows << ", " << cols << std::endl;
   return ((Terminal *)user)->resize(rows, cols);
 }
 
@@ -36,8 +37,7 @@ int Terminal::sb_popline(int cols, VTermScreenCell *cells, void *user) {
 }
 
 Terminal::Terminal(int _rows, int _cols, int font_width, int font_height,
-                   VTermOutputCallback out, void *user)
-    : matrix_(_rows, _cols) {
+                   VTermOutputCallback out, void *user) {
   vterm_ = vterm_new(_rows, _cols);
   vterm_set_utf8(vterm_, 1);
   vterm_output_set_callback(vterm_, out, user);
@@ -45,8 +45,6 @@ Terminal::Terminal(int _rows, int _cols, int font_width, int font_height,
   screen_ = vterm_obtain_screen(vterm_);
   vterm_screen_set_callbacks(screen_, &screen_callbacks, this);
   vterm_screen_reset(screen_, 1);
-
-  matrix_.fill(0);
 }
 
 Terminal::~Terminal() { vterm_free(vterm_); }
@@ -61,6 +59,26 @@ void Terminal::keyboard_key(VTermKey key, VTermModifier mod) {
 
 void Terminal::input_write(const char *bytes, size_t len) {
   vterm_input_write(vterm_, bytes, len);
+}
+
+const PosSet &Terminal::new_frame(bool *ringing) {
+  *ringing = ringing_;
+  ringing_ = false;
+
+#if 0
+  std::swap(damaged_, tmp_);
+#else
+  tmp_.clear();
+  int rows, cols;
+  vterm_get_size(vterm_, &rows, &cols);
+  for (int row = 0; row < rows; ++row) {
+    for (int col = 0; col < cols; ++col) {
+      tmp_.insert({.row = row, .col = col});
+    }
+  }
+#endif
+  damaged_.clear();
+  return tmp_;
 }
 
 VTermScreenCell *Terminal::get_cell(VTermPos pos) const {
@@ -85,10 +103,14 @@ VTermScreenCell *Terminal::get_cursor(VTermPos *pos) const {
 }
 
 int Terminal::damage(int start_row, int start_col, int end_row, int end_col) {
-  invalidateTexture();
+  // std::cout << "damage: (" << start_row << ", " << start_col << ")-(" << end_row
+  //           << "," << end_col << ")" << std::endl;
   for (int row = start_row; row < end_row; row++) {
     for (int col = start_col; col < end_col; col++) {
-      matrix_(row, col) = 1;
+      damaged_.insert(VTermPos{
+          .row = row,
+          .col = col,
+      });
     }
   }
   return 0;
@@ -149,6 +171,7 @@ int Terminal::settermprop(VTermProp prop, VTermValue *val) {
 }
 
 int Terminal::bell() {
+  std::cout << "bell" << std::endl;
   ringing_ = true;
   return 0;
 }

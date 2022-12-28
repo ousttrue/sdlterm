@@ -208,48 +208,39 @@ int main(int argc, char **argv) {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
     bool ringing;
-    if (auto matrix = terminal.new_frame(&ringing)) {
+    auto &damaged = terminal.new_frame(&ringing);
+    if (!damaged.empty()) {
       if (texture_) {
         SDL_DestroyTexture(texture_);
         texture_ = NULL;
       }
-      for (int row = 0; row < matrix->getRows(); row++) {
-        for (int col = 0; col < matrix->getCols(); col++) {
-          if ((*matrix)(row, col)) {
-            VTermPos pos = {row, col};
-            if (auto cell = terminal.get_cell(pos)) {
+      for (auto &pos : damaged) {
+        if (auto cell = terminal.get_cell(pos)) {
+          // color
+          SDL_Color color = {128, 128, 128};
+          SDL_Color bgcolor = {0, 0, 0};
+          if (VTERM_COLOR_IS_RGB(&cell->fg)) {
+            color = {cell->fg.rgb.red, cell->fg.rgb.green, cell->fg.rgb.blue};
+          }
+          if (VTERM_COLOR_IS_RGB(&cell->bg)) {
+            bgcolor = {cell->bg.rgb.red, cell->bg.rgb.green, cell->bg.rgb.blue};
+          }
+          if (cell->attrs.reverse) {
+            std::swap(color, bgcolor);
+          }
 
-              // color
-              SDL_Color color = {128, 128, 128};
-              SDL_Color bgcolor = {0, 0, 0};
-              if (VTERM_COLOR_IS_RGB(&cell->fg)) {
-                color = {cell->fg.rgb.red, cell->fg.rgb.green,
-                         cell->fg.rgb.blue};
-              }
-              if (VTERM_COLOR_IS_RGB(&cell->bg)) {
-                bgcolor = {cell->bg.rgb.red, cell->bg.rgb.green,
-                           cell->bg.rgb.blue};
-              }
-              if (cell->attrs.reverse) {
-                std::swap(color, bgcolor);
-              }
+          // bg
+          SDL_Rect rect = {pos.col * font_width, pos.row * font_height,
+                           font_width * cell->width, font_height};
+          SDL_FillRect(
+              surface_, &rect,
+              SDL_MapRGB(surface_->format, bgcolor.r, bgcolor.g, bgcolor.b));
 
-              // bg
-              SDL_Rect rect = {pos.col * font_width, pos.row * font_height,
-                               font_width * cell->width, font_height};
-              SDL_FillRect(surface_, &rect,
-                           SDL_MapRGB(surface_->format, bgcolor.r, bgcolor.g,
-                                      bgcolor.b));
-
-              // fg
-              if (auto text_surface = cellSurface(*cell, color)) {
-                SDL_SetSurfaceBlendMode(text_surface, SDL_BLENDMODE_BLEND);
-                SDL_BlitSurface(text_surface, NULL, surface_, &rect);
-                SDL_FreeSurface(text_surface);
-              }
-            }
-
-            (*matrix)(row, col) = 0;
+          // fg
+          if (auto text_surface = cellSurface(*cell, color)) {
+            SDL_SetSurfaceBlendMode(text_surface, SDL_BLENDMODE_BLEND);
+            SDL_BlitSurface(text_surface, NULL, surface_, &rect);
+            SDL_FreeSurface(text_surface);
           }
         }
       }
