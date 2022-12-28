@@ -1,14 +1,16 @@
-#include "SDL_pixels.h"
-#include "SDL_surface.h"
 #include "vterm.h"
 #include "vtermtest.h"
+#include <SDL_pixels.h>
+#include <SDL_surface.h>
+#include <SDL_ttf.h>
+#include <corecrt_math.h>
 #include <iostream>
 #include <stdexcept>
 #include <string.h>
+#include <string>
 
 #include <childprocess.h>
 #include <sdl_app.h>
-#include <string>
 
 #ifdef _MSC_VER
 auto FONT_FILE = "C:/Windows/Fonts/consola.ttf";
@@ -118,6 +120,10 @@ int main(int argc, char **argv) {
     return TTF_RenderUTF8_Blended(font, utf8.c_str(), color);
   };
 
+  auto surface_ = SDL_CreateRGBSurfaceWithFormat(
+      0, font_width * cols, font_height * rows, 32, SDL_PIXELFORMAT_RGBA32);
+  SDL_Texture *texture_ = nullptr;
+
   while (!child.IsClosed()) {
     // child output
     auto input = child.Read();
@@ -201,9 +207,89 @@ int main(int argc, char **argv) {
     // render
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
-    SDL_Rect rect = {0, 0, 1024, 768};
-    terminal.render(renderer, rect, cellSurface, font_width, font_height);
+    bool ringing;
+    if (auto matrix = terminal.new_frame(&ringing)) {
+      if (texture_) {
+        SDL_DestroyTexture(texture_);
+        texture_ = NULL;
+      }
+      for (int row = 0; row < matrix->getRows(); row++) {
+        for (int col = 0; col < matrix->getCols(); col++) {
+          if ((*matrix)(row, col)) {
+            VTermPos pos = {row, col};
+            if (auto cell = terminal.get_cell(pos)) {
+
+              // color
+              SDL_Color color = {128, 128, 128};
+              SDL_Color bgcolor = {0, 0, 0};
+              if (VTERM_COLOR_IS_RGB(&cell->fg)) {
+                color = {cell->fg.rgb.red, cell->fg.rgb.green,
+                         cell->fg.rgb.blue};
+              }
+              if (VTERM_COLOR_IS_RGB(&cell->bg)) {
+                bgcolor = {cell->bg.rgb.red, cell->bg.rgb.green,
+                           cell->bg.rgb.blue};
+              }
+              if (cell->attrs.reverse) {
+                std::swap(color, bgcolor);
+              }
+
+              // bg
+              SDL_Rect rect = {pos.col * font_width, pos.row * font_height,
+                               font_width * cell->width, font_height};
+              SDL_FillRect(surface_, &rect,
+                           SDL_MapRGB(surface_->format, bgcolor.r, bgcolor.g,
+                                      bgcolor.b));
+
+              // fg
+              if (auto text_surface = cellSurface(*cell, color)) {
+                SDL_SetSurfaceBlendMode(text_surface, SDL_BLENDMODE_BLEND);
+                SDL_BlitSurface(text_surface, NULL, surface_, &rect);
+                SDL_FreeSurface(text_surface);
+              }
+            }
+
+            (*matrix)(row, col) = 0;
+          }
+        }
+      }
+      texture_ = SDL_CreateTextureFromSurface(renderer, surface_);
+      SDL_SetTextureBlendMode(texture_, SDL_BLENDMODE_BLEND);
+    }
+    SDL_Rect window_rect = {0, 0, 1024, 768};
+    SDL_RenderCopy(renderer, texture_, NULL, &window_rect);
+
+    // cursor
+    VTermPos cursor_pos;
+    auto cursor = terminal.get_cursor(&cursor_pos);
+
+    SDL_Rect rect = {cursor_pos.col * font_width, cursor_pos.row * font_height,
+                     font_width, font_height};
+    // scale cursor
+    rect.x = window_rect.x + rect.x * window_rect.w / surface_->w;
+    rect.y = window_rect.y + rect.y * window_rect.h / surface_->h;
+    rect.w = rect.w * window_rect.w / surface_->w;
+    rect.w *= cursor->width;
+    rect.h = rect.h * window_rect.h / surface_->h;
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 96);
+    SDL_RenderFillRect(renderer, &rect);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_RenderDrawRect(renderer, &rect);
+
+    // ringing
+    if (ringing) {
+      SDL_SetRenderDrawColor(renderer, 255, 255, 255, 192);
+      SDL_RenderFillRect(renderer, &window_rect);
+    }
+
     SDL_RenderPresent(renderer);
+  }
+
+  SDL_FreeSurface(surface_);
+  if (texture_) {
+    SDL_DestroyTexture(texture_);
+    texture_ = NULL;
   }
 
   TTF_Quit();

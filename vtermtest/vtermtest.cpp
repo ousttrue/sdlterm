@@ -1,5 +1,4 @@
 #include "vtermtest.h"
-#include "SDL_video.h"
 #include "vterm.h"
 #include <iostream>
 #include <string.h>
@@ -48,25 +47,9 @@ Terminal::Terminal(int _rows, int _cols, int font_width, int font_height,
   vterm_screen_reset(screen_, 1);
 
   matrix_.fill(0);
-  surface_ = SDL_CreateRGBSurfaceWithFormat(
-      0, font_width * _cols, font_height * _rows, 32, SDL_PIXELFORMAT_RGBA32);
-
-  SDL_CreateRGBSurface(0, font_width, font_height, 32, 0, 0, 0, 0);
-  // SDL_SetSurfaceBlendMode(surface, SDL_BLENDMODE_BLEND);
 }
 
-Terminal::~Terminal() {
-  vterm_free(vterm_);
-  invalidateTexture();
-  SDL_FreeSurface(surface_);
-}
-
-void Terminal::invalidateTexture() {
-  if (texture_) {
-    SDL_DestroyTexture(texture_);
-    texture_ = NULL;
-  }
-}
+Terminal::~Terminal() { vterm_free(vterm_); }
 
 void Terminal::keyboard_unichar(char c, VTermModifier mod) {
   vterm_keyboard_unichar(vterm_, c, mod);
@@ -78,6 +61,27 @@ void Terminal::keyboard_key(VTermKey key, VTermModifier mod) {
 
 void Terminal::input_write(const char *bytes, size_t len) {
   vterm_input_write(vterm_, bytes, len);
+}
+
+VTermScreenCell *Terminal::get_cell(VTermPos pos) const {
+  // VTermScreenCell cell;
+  vterm_screen_get_cell(screen_, pos, &cell_);
+  if (cell_.chars[0] == 0xffffffff) {
+    return nullptr;
+  }
+  if (VTERM_COLOR_IS_INDEXED(&cell_.fg)) {
+    vterm_screen_convert_color_to_rgb(screen_, &cell_.fg);
+  }
+  if (VTERM_COLOR_IS_INDEXED(&cell_.bg)) {
+    vterm_screen_convert_color_to_rgb(screen_, &cell_.bg);
+  }
+  return &cell_;
+}
+
+VTermScreenCell *Terminal::get_cursor(VTermPos *pos) const {
+  *pos = cursor_pos_;
+  vterm_screen_get_cell(screen_, cursor_pos_, &cell_);
+  return &cell_;
 }
 
 int Terminal::damage(int start_row, int start_col, int end_row, int end_col) {
@@ -116,11 +120,15 @@ int Terminal::settermprop(VTermProp prop, VTermValue *val) {
     break;
   case VTERM_PROP_TITLE:
     // string
-    std::cout << "VTERM_PROP_TITLE: " << std::string_view(val->string.str, val->string.len) << std::endl;
+    std::cout << "VTERM_PROP_TITLE: "
+              << std::string_view(val->string.str, val->string.len)
+              << std::endl;
     break;
   case VTERM_PROP_ICONNAME:
     // string
-    std::cout << "VTERM_PROP_ICONNAME: " << std::string_view(val->string.str, val->string.len) << std::endl;
+    std::cout << "VTERM_PROP_ICONNAME: "
+              << std::string_view(val->string.str, val->string.len)
+              << std::endl;
     break;
   case VTERM_PROP_REVERSE:
     // bool
@@ -159,88 +167,3 @@ int Terminal::sb_popline(int cols, VTermScreenCell *cells) {
   std::cout << "sb_popline" << std::endl;
   return 0;
 }
-
-void Terminal::render(SDL_Renderer *renderer, const SDL_Rect &window_rect,
-                      const CellSurface &cellSurface, int font_width,
-                      int font_height) {
-  if (!texture_) {
-    for (int row = 0; row < matrix_.getRows(); row++) {
-      for (int col = 0; col < matrix_.getCols(); col++) {
-        if (matrix_(row, col)) {
-          VTermPos pos = {row, col};
-          render_cell(pos, cellSurface, font_width, font_height);
-          matrix_(row, col) = 0;
-        }
-      }
-    }
-    texture_ = SDL_CreateTextureFromSurface(renderer, surface_);
-    SDL_SetTextureBlendMode(texture_, SDL_BLENDMODE_BLEND);
-  }
-  SDL_RenderCopy(renderer, texture_, NULL, &window_rect);
-  // draw cursor
-  VTermScreenCell cell;
-  vterm_screen_get_cell(screen_, cursor_pos_, &cell);
-
-  SDL_Rect rect = {cursor_pos_.col * font_width, cursor_pos_.row * font_height,
-                   font_width, font_height};
-  // scale cursor
-  rect.x = window_rect.x + rect.x * window_rect.w / surface_->w;
-  rect.y = window_rect.y + rect.y * window_rect.h / surface_->h;
-  rect.w = rect.w * window_rect.w / surface_->w;
-  rect.w *= cell.width;
-  rect.h = rect.h * window_rect.h / surface_->h;
-  SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 96);
-  SDL_RenderFillRect(renderer, &rect);
-  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-  SDL_RenderDrawRect(renderer, &rect);
-
-  if (ringing_) {
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 192);
-    SDL_RenderFillRect(renderer, &window_rect);
-    ringing_ = 0;
-  }
-}
-
-void Terminal::render_cell(VTermPos pos, const CellSurface &cellSurface,
-                           int font_width, int font_height) {
-  VTermScreenCell cell;
-  vterm_screen_get_cell(screen_, pos, &cell);
-  if (cell.chars[0] == 0xffffffff) {
-    return;
-  }
-
-  // color
-  SDL_Color color = {128, 128, 128};
-  SDL_Color bgcolor = {0, 0, 0};
-  if (VTERM_COLOR_IS_INDEXED(&cell.fg)) {
-    vterm_screen_convert_color_to_rgb(screen_, &cell.fg);
-  }
-  if (VTERM_COLOR_IS_RGB(&cell.fg)) {
-    color = {cell.fg.rgb.red, cell.fg.rgb.green, cell.fg.rgb.blue};
-  }
-  if (VTERM_COLOR_IS_INDEXED(&cell.bg)) {
-    vterm_screen_convert_color_to_rgb(screen_, &cell.bg);
-  }
-  if (VTERM_COLOR_IS_RGB(&cell.bg)) {
-    bgcolor = {cell.bg.rgb.red, cell.bg.rgb.green, cell.bg.rgb.blue};
-  }
-  if (cell.attrs.reverse) {
-    std::swap(color, bgcolor);
-  }
-
-  // bg
-  SDL_Rect rect = {pos.col * font_width, pos.row * font_height,
-                   font_width * cell.width, font_height};
-  SDL_FillRect(surface_, &rect,
-               SDL_MapRGB(surface_->format, bgcolor.r, bgcolor.g, bgcolor.b));
-
-  // fg
-  if (auto text_surface = cellSurface(cell, color)) {
-    SDL_SetSurfaceBlendMode(text_surface, SDL_BLENDMODE_BLEND);
-    SDL_BlitSurface(text_surface, NULL, surface_, &rect);
-    SDL_FreeSurface(text_surface);
-  }
-}
-
-// void Terminal::processEvent(const SDL_Event &ev) 
