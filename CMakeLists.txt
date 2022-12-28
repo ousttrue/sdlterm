@@ -6,4 +6,4 @@ link_directories(${CMAKE_BINARY_DIR}/$<IF:$<CONFIG:Debug>,Debug,Release>/lib)
 
 set(CMAKE_CXX_STANDARD 20)
 
-subdirs(thirdparty termtk src vtermtest)
+subdirs(thirdparty termtk src)
