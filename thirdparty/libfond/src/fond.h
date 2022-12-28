@@ -88,7 +88,7 @@ extern "C" {
     // A UTF8 encoded string of characters that
     // this font instance will be able to render.
     // Must be null-terminated.
-    char *characters;
+    const char *characters;
     // An array of Unicode codepoints that this
     // font instance will be able to render. Must
     // be null-terminated. This is automatically
@@ -305,7 +305,7 @@ extern "C" {
   // color can be either 0 for white text, or
   // an array of four floats, representing RGBA
   // of the text's colour in that order.
-  FOND_EXPORT int fond_render(struct fond_buffer *buffer, char *text, float x, float y, float *color);
+  FOND_EXPORT int fond_render(struct fond_buffer *buffer, const char *text, float x, float y, float *color);
 
   // Same as fond_render, but taking an UTF32
   // encoded string of codepoints and its size.

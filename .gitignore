@@ -1,6 +1,7 @@
 /.cache/
 /build/
-
+/builddir/
+/prefix/
 /subprojects/*
 !/subprojects/*.wrap
 !/subprojects/packagefiles

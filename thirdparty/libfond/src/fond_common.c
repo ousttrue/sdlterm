@@ -69,7 +69,7 @@ FOND_EXPORT int fond_compute_extent(struct fond_font *font, char *text, struct f
   return (errorcode == FOND_NO_ERROR);
 }
 
-FOND_EXPORT int fond_render(struct fond_buffer *buffer, char *text, float x, float y, float *color){
+FOND_EXPORT int fond_render(struct fond_buffer *buffer, const char *text, float x, float y, float *color){
   size_t size = 0;
   int32_t *codepoints = 0;
   

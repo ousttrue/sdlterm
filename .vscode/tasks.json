@@ -6,7 +6,7 @@
         {
             "label": "configure",
             "type": "shell",
-            "command": "meson setup build",
+            "command": "meson setup build --prefix ${workspaceFolder}/prefix",
             "problemMatcher": [],
         },
         {
@@ -18,7 +18,7 @@
         {
             "label": "build",
             "type": "shell",
-            "command": "meson compile -C build",
+            "command": "meson install -C build",
             "problemMatcher": [
                 "$msCompile"
             ],

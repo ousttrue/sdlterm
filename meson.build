@@ -4,6 +4,9 @@ project('sdlterm', ['c', 'cpp'],
 sdl2_dep = dependency('sdl2')
 sdl2_ttf_dep = dependency('sdl2_ttf')
 vterm_dep = dependency('vterm')
+glew_dep = dependency('glew')
+glfw_dep = dependency('glfw3')
 
+subdir('thirdparty')
 subdir('termtk')
 subdir('src')

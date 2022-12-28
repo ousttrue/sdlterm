@@ -1,3 +1,3 @@
 executable('sdlterm', ['main.cpp'],
-    dependencies: sdl2_dep
-)
+    dependencies: sdl2_dep,
+    install: true)

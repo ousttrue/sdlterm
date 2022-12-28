@@ -19,18 +19,28 @@
             "name": "[Windows]vtermtest",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/src/vtermtest/vtermtest.exe",
+            "program": "${workspaceFolder}/prefix/bin/vtermtest.exe",
             "args": [
                 "${env:HOME}/.fonts/HackGenNerdConsole-Regular.ttf",
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [
-                {
-                    "name": "PATH",
-                    "value": "${workspaceFolder}\\build\\subprojects\\SDL2_ttf-2.20.1;${workspaceFolder}\\build\\subprojects\\SDL2-2.26.0;${env:PATH}"
-                }
+            "environment": [],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "[Windows]fondtest",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/prefix/bin/fondtest.exe",
+            "args": [
+                "${env:HOME}/.fonts/HackGenNerdConsole-Regular.ttf",
+                "thirdparty/libfond/src/shader/to_texture.vert",
+                "thirdparty/libfond/src/shader/to_texture.frag",
             ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
             "console": "integratedTerminal"
         },
         {

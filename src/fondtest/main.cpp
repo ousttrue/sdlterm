@@ -155,7 +155,7 @@ int main(int argc, char **argv){
   GLFWwindow* window = glfwCreateWindow(800, 600, "Fond Test", 0, 0);
   if(window == 0){
     printf("Failed to create GLFW window\n");
-    goto main_cleanup;
+    return 4;
   }
   glfwMakeContextCurrent(window);
   glfwSetKeyCallback(window, key_callback);
@@ -164,7 +164,7 @@ int main(int argc, char **argv){
   glewExperimental = GL_TRUE;
   if(glewInit() != GLEW_OK){
     printf("Failed to initialize GLEW\n");
-    goto main_cleanup;
+    return 5;
   }
 
   //glEnable(GL_CULL_FACE);
@@ -218,7 +218,7 @@ int main(int argc, char **argv){
 
   if(glGetError() != GL_NO_ERROR){
     printf("FAILED\n");
-    goto main_cleanup;
+    return 6;
   }
   printf("DONE\n");
 
@@ -233,7 +233,7 @@ int main(int argc, char **argv){
   
   if(!load_stuff(argv[1], &data, vs.data(), fs.data())){
     printf("Error: %s\n", fond_error_string(fond_error()));
-    goto main_cleanup;
+    return 7;
   }
 
   int width, height;
@@ -251,7 +251,7 @@ int main(int argc, char **argv){
   fond_free(&font);
   fond_free_buffer(&buffer);
 
- main_cleanup:
-  glfwTerminate();
+//  main_cleanup:
+//   glfwTerminate();
   return 0;
 }
