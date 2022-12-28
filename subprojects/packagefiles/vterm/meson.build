@@ -1,5 +1,5 @@
 project('vterm', 'c')
-vterm_inc = include_directories('src', '.')
+vterm_inc = include_directories('src', '.', 'include')
 vterm = static_library('vterm', [
   'src/encoding.c',
   'src/keyboard.c',
