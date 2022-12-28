@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <vterm.h>
+#include <stdexcept>
 
 template <typename T> class Matrix {
   T *buf;

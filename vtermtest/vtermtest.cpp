@@ -3,8 +3,6 @@
 #include "vterm.h"
 #include <iostream>
 #include <string.h>
-#include <termios.h>
-#include <unistd.h>
 
 int Terminal::damage(VTermRect rect, void *user) {
   return ((Terminal *)user)
@@ -118,11 +116,11 @@ int Terminal::settermprop(VTermProp prop, VTermValue *val) {
     break;
   case VTERM_PROP_TITLE:
     // string
-    std::cout << "VTERM_PROP_TITLE: " << val->string.str << std::endl;
+    std::cout << "VTERM_PROP_TITLE: " << std::string_view(val->string.str, val->string.len) << std::endl;
     break;
   case VTERM_PROP_ICONNAME:
     // string
-    std::cout << "VTERM_PROP_ICONNAME: " << val->string.str << std::endl;
+    std::cout << "VTERM_PROP_ICONNAME: " << std::string_view(val->string.str, val->string.len) << std::endl;
     break;
   case VTERM_PROP_REVERSE:
     // bool
@@ -213,19 +211,19 @@ void Terminal::render_cell(VTermPos pos, const CellSurface &cellSurface,
   }
 
   // color
-  SDL_Color color = (SDL_Color){128, 128, 128};
-  SDL_Color bgcolor = (SDL_Color){0, 0, 0};
+  SDL_Color color = {128, 128, 128};
+  SDL_Color bgcolor = {0, 0, 0};
   if (VTERM_COLOR_IS_INDEXED(&cell.fg)) {
     vterm_screen_convert_color_to_rgb(screen_, &cell.fg);
   }
   if (VTERM_COLOR_IS_RGB(&cell.fg)) {
-    color = (SDL_Color){cell.fg.rgb.red, cell.fg.rgb.green, cell.fg.rgb.blue};
+    color = {cell.fg.rgb.red, cell.fg.rgb.green, cell.fg.rgb.blue};
   }
   if (VTERM_COLOR_IS_INDEXED(&cell.bg)) {
     vterm_screen_convert_color_to_rgb(screen_, &cell.bg);
   }
   if (VTERM_COLOR_IS_RGB(&cell.bg)) {
-    bgcolor = (SDL_Color){cell.bg.rgb.red, cell.bg.rgb.green, cell.bg.rgb.blue};
+    bgcolor = {cell.bg.rgb.red, cell.bg.rgb.green, cell.bg.rgb.blue};
   }
   if (cell.attrs.reverse) {
     std::swap(color, bgcolor);

@@ -16,6 +16,19 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "[Windows]vtermtest",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/bin/vtermtest.exe",
+            "args": [
+                "${env:HOME}/.fonts/HackGenNerdConsole-Regular.ttf",
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal"
+        },
+        {
             "name": "[Linux]sdlterm",
             "type": "cppdbg",
             "request": "launch",

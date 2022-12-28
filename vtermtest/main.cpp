@@ -3,26 +3,39 @@
 #include "vterm.h"
 #include "vtermtest.h"
 #include <iostream>
+#include <stdexcept>
 #include <string.h>
-#include <unicode/normlzr.h>
-#include <unicode/unistr.h>
 
 #include <childprocess.h>
 #include <sdl_app.h>
+#include <string>
 
+#ifdef _MSC_VER
+auto FONT_FILE = "C:/Windows/Fonts/consola.ttf";
+#else
 auto FONT_FILE = "/usr/share/fonts/vlgothic/VL-Gothic-Regular.ttf";
+#endif
 
-static std::string cp2utf8(const icu::UnicodeString &ustr) {
-  UErrorCode status = U_ZERO_ERROR;
-  auto normalizer = icu::Normalizer2::getNFKCInstance(status);
-  if (U_FAILURE(status))
-    throw std::runtime_error("unable to get NFKC normalizer");
-  auto ustr_normalized = normalizer->normalize(ustr, status);
+static std::string cp2utf8(const std::u32string &unicode) {
   std::string utf8;
-  if (U_SUCCESS(status)) {
-    ustr_normalized.toUTF8String(utf8);
-  } else {
-    ustr.toUTF8String(utf8);
+  for (auto &cp : unicode) {
+    if (cp <= 0x7F) {
+      utf8.push_back(cp);
+    } else if (cp <= 0x7FF) {
+      utf8.push_back((cp >> 6) + 192);
+      utf8.push_back((cp & 63) + 128);
+    } else if (0xd800 <= cp && cp <= 0xdfff) {
+      throw std::runtime_error("invalid codepoint");
+    } else if (cp <= 0xFFFF) {
+      utf8.push_back((cp >> 12) + 224);
+      utf8.push_back(((cp >> 6) & 63) + 128);
+      utf8.push_back((cp & 63) + 128);
+    } else if (cp <= 0x10FFFF) {
+      utf8.push_back((cp >> 18) + 240);
+      utf8.push_back(((cp >> 12) & 63) + 128);
+      utf8.push_back(((cp >> 6) & 63) + 128);
+      utf8.push_back((cp & 63) + 128);
+    }
   }
   return utf8;
 }
@@ -39,7 +52,7 @@ int main(int argc, char **argv) {
     return 2;
   }
 
-  TTF_Font *font = TTF_OpenFont(FONT_FILE, 48);
+  TTF_Font *font = TTF_OpenFont(FONT_FILE, 18);
   if (font == NULL) {
     std::cerr << "TTF_OpenFont: " << TTF_GetError() << std::endl;
     return 3;
@@ -61,11 +74,17 @@ int main(int argc, char **argv) {
     return 5;
   }
 
-  const int rows = 32;
-  const int cols = 100;
+  const int rows = window->Height() / font_height;
+  const int cols = window->Width() / font_width;
+
+#ifdef _MSC_VER
+  auto SHELL = "cmd.exe";
+#else
+  auto SHELL = getenv("SHELL");
+#endif
 
   termtk::ChildProcess child;
-  child.Launch(rows, cols, getenv("SHELL"), {"-"});
+  child.Launch(rows, cols, SHELL, {"-"});
 
   Terminal terminal(rows, cols, font_width, font_height,
                     &termtk::ChildProcess::Write, &child);
@@ -73,14 +92,14 @@ int main(int argc, char **argv) {
   auto cellSurface = [font](const VTermScreenCell &cell,
                             SDL_Color color) -> SDL_Surface * {
     // code points to utf8
-    icu::UnicodeString ustr;
+    std::u32string unicode;
     for (int i = 0; cell.chars[i] != 0 && i < VTERM_MAX_CHARS_PER_CELL; i++) {
-      ustr.append((UChar32)cell.chars[i]);
+      unicode.push_back(cell.chars[i]);
     }
-    if (ustr.length() == 0) {
+    if (unicode.length() == 0) {
       return nullptr;
     }
-    auto utf8 = cp2utf8(ustr);
+    auto utf8 = cp2utf8(unicode);
 
     // style
     int style = TTF_STYLE_NORMAL;

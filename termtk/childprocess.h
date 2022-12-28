@@ -7,10 +7,11 @@
 namespace termtk {
 
 class ChildProcess {
-  pid_t child_pid_ = 0;
-  int pty_fd_ = 0;
-  int status_ = 0;
-  char buf_[4096];
+  struct ChildProcessImpl *impl_ = nullptr;
+  // pid_t child_pid_ = 0;
+  // int pty_fd_ = 0;
+  // int status_ = 0;
+  char buf_[8192];
 
 public:
   ChildProcess();
@@ -20,6 +21,7 @@ public:
               const char *TERM = "xterm-256color");
   bool IsClosed();
   void Kill();
+  void NotifyTermSize(unsigned short rows, unsigned short cols);
   void Write(const char *s, size_t len);
   static void Write(const char *s, size_t len, void *user) {
     auto self = (ChildProcess *)user;

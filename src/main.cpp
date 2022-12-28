@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
       cols = new_cols;
       std::cout << "rows x cols: " << rows << " x " << cols << std::endl;
       vterm.Resize(rows, cols);
-      // child.NotifyTermSize(rows, cols);
+      child.NotifyTermSize(rows, cols);
       renderer->SetDirty();
     }
 

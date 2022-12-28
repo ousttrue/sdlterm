@@ -5,12 +5,15 @@
 #include <mutex>
 #include <process.h>
 #include <stdexcept>
+#include <string.h>
 #include <winerror.h>
 
 // Forward declarations
 HRESULT InitializeStartupInfoAttachedToPseudoConsole(STARTUPINFOEXA *, HPCON);
 
-struct Context {
+namespace termtk {
+
+struct ChildProcessImpl {
   HPCON hpc_ = INVALID_HANDLE_VALUE;
   HANDLE hPipeIn_ = INVALID_HANDLE_VALUE;
   HANDLE hPipeOut_ = INVALID_HANDLE_VALUE;
@@ -40,7 +43,7 @@ struct Context {
       CloseHandle(hPipeIn_);
   }
 
-  HRESULT CreatePseudoConsoleAndPipes() {
+  HRESULT CreatePseudoConsoleAndPipes(int rows, int cols) {
     HRESULT hr{E_UNEXPECTED};
     HANDLE hPipePTYIn{INVALID_HANDLE_VALUE};
     HANDLE hPipePTYOut{INVALID_HANDLE_VALUE};
@@ -50,12 +53,12 @@ struct Context {
         CreatePipe(&hPipeIn_, &hPipePTYOut, NULL, 0)) {
       // Determine required size of Pseudo Console
       COORD consoleSize{};
-      CONSOLE_SCREEN_BUFFER_INFO csbi{};
-      HANDLE hConsole{GetStdHandle(STD_OUTPUT_HANDLE)};
-      if (GetConsoleScreenBufferInfo(hConsole, &csbi)) {
-        consoleSize.X = csbi.srWindow.Right - csbi.srWindow.Left + 1;
-        consoleSize.Y = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
-      }
+      // CONSOLE_SCREEN_BUFFER_INFO csbi{};
+      // HANDLE hConsole{GetStdHandle(STD_OUTPUT_HANDLE)};
+      // if (GetConsoleScreenBufferInfo(hConsole, &csbi)) {
+        consoleSize.X = cols;
+        consoleSize.Y = rows;
+      // }
 
       // Create the Pseudo Console of the required size, attached to the PTY-end
       // of the pipes
@@ -143,7 +146,10 @@ struct Context {
   DWORD Dequeue(char *buf, size_t len) {
     std::lock_guard<std::mutex> lock(mtx_);
     if (len < buffer_.size()) {
-      throw std::runtime_error("not implemented yet");
+      memcpy(buf, buffer_.data(), len);
+      memmove(buffer_.data(), buffer_.data() + len, buffer_.size() - len);
+      buffer_.resize(buffer_.size() - len);
+      return len;
     } else {
       auto size = std::min(len, buffer_.size());
       memcpy(buf, buffer_.data(), size);
@@ -152,11 +158,10 @@ struct Context {
     }
   }
 };
-Context context_;
 
 static void __cdecl PipeListener(LPVOID p) {
-  auto context = (Context *)p;
-  HANDLE hPipe{context->hPipeIn_};
+  auto impl = (ChildProcessImpl *)p;
+  HANDLE hPipe{impl->hPipeIn_};
   HANDLE hConsole{GetStdHandle(STD_OUTPUT_HANDLE)};
 
   const DWORD BUFF_SIZE{512};
@@ -174,41 +179,53 @@ static void __cdecl PipeListener(LPVOID p) {
     // printf()/puts() to prevent partially-read VT sequences from corrupting
     // output
     // WriteFile(hConsole, szBuffer, dwBytesRead, &dwBytesWritten, NULL);
-    context->Enqueue(szBuffer, BUFF_SIZE);
+    impl->Enqueue(szBuffer, BUFF_SIZE);
 
   } while (fRead && dwBytesRead >= 0);
 
   std::cout << "PipeListener finished." << std::endl;
 }
 
-ChildProcess::~ChildProcess() {}
-bool ChildProcess::Launch(const char *exec, char *const argv[]) {
+ChildProcess::ChildProcess() : impl_(new ChildProcessImpl) {}
+ChildProcess::~ChildProcess() {
+  if (impl_) {
+    delete impl_;
+    impl_ = nullptr;
+  }
+}
+
+void ChildProcess::Launch(int rows, int cols, const char *prog,
+                          const std::vector<std::string> &args,
+                          const char *TERM) {
 
   //  Create the Pseudo Console and pipes to it
-  auto hr = context_.CreatePseudoConsoleAndPipes();
+  auto hr = impl_->CreatePseudoConsoleAndPipes(rows, cols);
   if (FAILED(hr)) {
-    return false;
+    return;
   }
 
   // Create & start thread to listen to the incoming pipe
   // Note: Using CRT-safe _beginthread() rather than CreateThread()
   HANDLE hPipeListenerThread{
-      reinterpret_cast<HANDLE>(_beginthread(PipeListener, 0, &context_))};
+      reinterpret_cast<HANDLE>(_beginthread(PipeListener, 0, impl_))};
 
-  if (!context_.Launch(exec)) {
-    return false;
+  if (!impl_->Launch(prog)) {
+    return;
   }
-
-  return true;
 }
-bool ChildProcess::Closed() const {
-  auto result = WaitForSingleObject(context_.piClient_.hThread, 0);
+
+bool ChildProcess::IsClosed() {
+  auto result = WaitForSingleObject(impl_->piClient_.hThread, 0);
   return result == WAIT_OBJECT_0;
 }
+
+void ChildProcess::Kill() { TerminateProcess(impl_->piClient_.hProcess, 9); }
+
 void ChildProcess::Write(const char *buf, size_t size) {
   DWORD write_size;
-  WriteFile(context_.hPipeOut_, buf, size, &write_size, NULL);
+  WriteFile(impl_->hPipeOut_, buf, size, &write_size, NULL);
 }
+
 void ChildProcess::NotifyTermSize(unsigned short rows, unsigned short cols) {
   // Retrieve width and height dimensions of display in
   // characters using theoretical height/width functions
@@ -219,9 +236,12 @@ void ChildProcess::NotifyTermSize(unsigned short rows, unsigned short cols) {
   size.Y = rows;
 
   // Call pseudoconsole API to inform buffer dimension update
-  ResizePseudoConsole(context_.hpc_, size);
+  ResizePseudoConsole(impl_->hpc_, size);
 }
-const char *ChildProcess::Read(size_t *pSize) {
-  *pSize = context_.Dequeue(ReadBuffer, sizeof(ReadBuffer));
-  return ReadBuffer;
+
+std::span<char> ChildProcess::Read() {
+  auto size = impl_->Dequeue(buf_, sizeof(buf_));
+  return {buf_, buf_ + size};
 }
+
+} // namespace termtk

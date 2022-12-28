@@ -44,7 +44,7 @@ add_library(
 target_include_directories(vterm PUBLIC ${vterm_SOURCE_DIR}/include
                                         ${CMAKE_CURRENT_LIST_DIR}/vterm_src)
 
-subdirs(SDL_fox libfond)
+subdirs(SDL_fox)
 
 if(WIN32)
   FetchContent_Populate(
@@ -53,4 +53,6 @@ if(WIN32)
     GIT_TAG v1.0)
   add_library(getopt STATIC ${getopt_SOURCE_DIR}/source/getopt.c)
   target_include_directories(getopt PUBLIC ${getopt_SOURCE_DIR}/include)
+else()
+  subdirs(libfond)
 endif()
