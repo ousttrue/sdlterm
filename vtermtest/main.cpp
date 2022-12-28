@@ -3,7 +3,6 @@
 #include <SDL_pixels.h>
 #include <SDL_surface.h>
 #include <SDL_ttf.h>
-#include <corecrt_math.h>
 #include <iostream>
 #include <stdexcept>
 #include <string.h>

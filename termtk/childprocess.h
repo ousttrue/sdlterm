@@ -8,10 +8,6 @@ namespace termtk {
 
 class ChildProcess {
   struct ChildProcessImpl *impl_ = nullptr;
-  // pid_t child_pid_ = 0;
-  // int pty_fd_ = 0;
-  // int status_ = 0;
-  char buf_[8192];
 
 public:
   ChildProcess();
