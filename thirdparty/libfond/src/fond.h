@@ -23,7 +23,7 @@ extern "C" {
   // 
   // See fond_error
   // See fond_error_string
-  FOND_EXPORT enum fond_error{
+  enum fond_error{
     // Everything is OK.
     FOND_NO_ERROR,
     // The font file could not be read. Most likely
@@ -75,7 +75,7 @@ extern "C" {
   // See fond_compute_u
   // See fond_compute_extent
   // See fond_compute_extent_u
-  FOND_EXPORT struct fond_font{
+  struct fond_font{
     // Path to the TTF file.
     char *file;
     // The index of the font within the TTF file.
@@ -125,7 +125,7 @@ extern "C" {
   // See fond_load_buffer
   // See fond_render
   // See fond_render_u
-  FOND_EXPORT struct fond_buffer{
+  struct fond_buffer{
     // Pointer to the font that it renders.
     struct fond_font *font;
     // The OpenGL texture ID to which this
@@ -148,7 +148,7 @@ extern "C" {
   //
   // See fond_compute_extent
   // See fond_compute_extent_u
-  FOND_EXPORT struct fond_extent{
+  struct fond_extent{
     // How far to the left the text extends
     // from zero.
     float l;
@@ -297,7 +297,7 @@ extern "C" {
   //   font
   //   width
   //   height
-  FOND_EXPORT int fond_load_buffer(struct fond_buffer *buffer);
+  FOND_EXPORT int fond_load_buffer(struct fond_buffer *buffer, const char *vs, const char *fs);
 
   // Render the given text to the buffer's
   // texture. The text will be rendered at the

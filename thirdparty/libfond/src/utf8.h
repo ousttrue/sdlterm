@@ -35,16 +35,10 @@
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #if defined(_MSC_VER)
 #pragma warning(pop)
-#endif
-
-#if defined(_MSC_VER)
-#define int32_t __int32
-#define uint32_t __uint32
-#else
-#include <stdint.h>
 #endif
 
 #if defined(__clang__)

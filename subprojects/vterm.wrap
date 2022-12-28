@@ -1,0 +1,9 @@
+[wrap-file]
+source_url = https://www.leonerd.org.uk/code/libvterm/libvterm-0.3.tar.gz
+source_hash = 61eb0d6628c52bdf02900dfd4468aa86a1a7125228bab8a67328981887483358
+source_filename = libvterm-0.3.tar.gz
+directory = libvterm-0.3
+patch_directory = vterm
+
+[provide]
+vterm = vterm_dep

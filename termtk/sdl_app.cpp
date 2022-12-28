@@ -2,7 +2,6 @@
 #include "SDL_stdinc.h"
 #include "SDL_video.h"
 #include <SDL.h>
-#include <SDL_fox.h>
 #include <compare>
 #include <iostream>
 #include <memory>
@@ -57,9 +56,9 @@ struct SDLAppImpl {
     if (SDL_Init(SDL_INIT_VIDEO)) {
       throw std::runtime_error("SDL_Init");
     }
-    if (FOX_Init() != FOX_INITIALIZED) {
-      throw std::runtime_error("FOX_Init");
-    }
+    // if (FOX_Init() != FOX_INITIALIZED) {
+    //   throw std::runtime_error("FOX_Init");
+    // }
 
     // SDL_ShowCursor(SDL_DISABLE);
     this->pointer_ = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
@@ -75,7 +74,7 @@ struct SDLAppImpl {
     std::cout << "termtk::SDLAppImpl::~SDLAppImpl\n";
     SDL_FreeCursor(this->pointer_);
 
-    FOX_Exit();
+    // FOX_Exit();
     SDL_Quit();
   }
 

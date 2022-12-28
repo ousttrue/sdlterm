@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include "fond_internal.h"
-#include "shader/to_texture.vert.h"
-#include "shader/to_texture.frag.h"
+// #include "shader/to_texture.vert.h"
+// #include "shader/to_texture.frag.h"
 
-const GLchar *to_texture_vert_src = to_texture_vert;
-const GLchar *to_texture_frag_src = to_texture_frag;
+// const GLchar *to_texture_vert_src = to_texture_vert;
+// const GLchar *to_texture_frag_src = to_texture_frag;
 
 FOND_EXPORT void fond_free_buffer(struct fond_buffer *buffer){
   if(buffer->texture)
@@ -20,7 +20,7 @@ FOND_EXPORT void fond_free_buffer(struct fond_buffer *buffer){
   buffer->framebuffer = 0;
 }
 
-FOND_EXPORT int fond_load_buffer(struct fond_buffer *buffer){
+FOND_EXPORT int fond_load_buffer(struct fond_buffer *buffer, const char *to_texture_vert_src, const char *to_texture_frag_src){
   GLuint vert = 0, frag = 0;
   
   if(buffer->width == 0)

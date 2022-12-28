@@ -1,0 +1,2 @@
+# subdir('sdlterm')
+subdir('vtermtest')

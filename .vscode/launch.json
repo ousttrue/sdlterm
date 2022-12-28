@@ -19,13 +19,18 @@
             "name": "[Windows]vtermtest",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/Debug/bin/vtermtest.exe",
+            "program": "${workspaceFolder}/build/src/vtermtest/vtermtest.exe",
             "args": [
                 "${env:HOME}/.fonts/HackGenNerdConsole-Regular.ttf",
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "${workspaceFolder}\\build\\subprojects\\SDL2_ttf-2.20.1;${workspaceFolder}\\build\\subprojects\\SDL2-2.26.0;${env:PATH}"
+                }
+            ],
             "console": "integratedTerminal"
         },
         {

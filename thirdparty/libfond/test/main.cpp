@@ -1,8 +1,9 @@
-#define GLEW_STATIC
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <stdio.h>
-#include "../src/fond.h"
+#include <fond.h>
+#include <vector>
+#include <fstream>
 
 const GLchar *vertex_shader = "#version 330 core\n"
   "layout (location = 0) in vec3 position;\n"
@@ -29,7 +30,7 @@ struct data{
   size_t pos;
 };
 
-int load_stuff(char *file, struct data *data){
+int load_stuff(char *file, struct data *data, const char *vs, const char *fs) {  
   struct fond_buffer *buffer = data->buffer;
   struct fond_font *font = buffer->font;
   
@@ -52,7 +53,7 @@ int load_stuff(char *file, struct data *data){
   buffer->width = 800;
   buffer->height = 600;
   printf("Loading buffer... ");
-  if(!fond_load_buffer(buffer))
+  if(!fond_load_buffer(buffer, vs, fs))
     return 0;
   printf("DONE\n");
 
@@ -75,7 +76,7 @@ int render_text(struct data *data){
 }
 
 void character_callback(GLFWwindow* window, unsigned int codepoint){
-  struct data *data = glfwGetWindowUserPointer(window);
+  auto data = (struct data*)glfwGetWindowUserPointer(window);
   if(data->pos < 500){
     data->text[data->pos] = (int32_t)codepoint;
     data->pos++;
@@ -85,7 +86,7 @@ void character_callback(GLFWwindow* window, unsigned int codepoint){
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode){
-  struct data *data = glfwGetWindowUserPointer(window);
+  auto data = (struct data*)glfwGetWindowUserPointer(window);
   if(action == GLFW_RELEASE){
     switch(key){
     case GLFW_KEY_BACKSPACE:
@@ -116,11 +117,31 @@ void render(GLuint program, GLuint vao, struct fond_buffer *buffer){
   glBindVertexArray(0);
 }
 
+static std::vector<char> ReadAllBytes(char const *filename)
+{
+    std::ifstream ifs(filename, std::ios::binary | std::ios::ate);
+    auto pos = ifs.tellg();
+    std::vector<char> buffer(pos);
+    ifs.seekg(0, std::ios::beg);
+    ifs.read(buffer.data(), pos);
+    return buffer;
+}
+
 int main(int argc, char **argv){
-  if(argc == 1){
+  if(argc < 4){
     printf("Please specify a TTF file to load.\n");
-    return 0;
+    return 1;
   }
+  auto vs = ReadAllBytes(argv[2]);
+  if (vs.empty()) {
+    return 2;
+  }
+  vs.push_back(0);
+  auto fs = ReadAllBytes(argv[3]);
+  if (fs.empty()) {
+    return 3;
+  }
+  fs.push_back(0);
 
   printf("Initializing GL... ");
   
@@ -210,7 +231,7 @@ int main(int argc, char **argv){
   
   glfwSetWindowUserPointer(window, &data);
   
-  if(!load_stuff(argv[1], &data)){
+  if(!load_stuff(argv[1], &data, vs.data(), fs.data())){
     printf("Error: %s\n", fond_error_string(fond_error()));
     goto main_cleanup;
   }
