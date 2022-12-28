@@ -1,7 +1,8 @@
-#include "vtermtest.h"
-#include "vterm.h"
+#include "vterm_object.h"
 #include <iostream>
 #include <string.h>
+
+namespace termtk {
 
 int Terminal::damage(VTermRect rect, void *user) {
   return ((Terminal *)user)
@@ -103,7 +104,8 @@ VTermScreenCell *Terminal::get_cursor(VTermPos *pos) const {
 }
 
 int Terminal::damage(int start_row, int start_col, int end_row, int end_col) {
-  // std::cout << "damage: (" << start_row << ", " << start_col << ")-(" << end_row
+  // std::cout << "damage: (" << start_row << ", " << start_col << ")-(" <<
+  // end_row
   //           << "," << end_col << ")" << std::endl;
   for (int row = start_row; row < end_row; row++) {
     for (int col = start_col; col < end_col; col++) {
@@ -190,3 +192,5 @@ int Terminal::sb_popline(int cols, VTermScreenCell *cells) {
   std::cout << "sb_popline" << std::endl;
   return 0;
 }
+
+} // namespace termtk

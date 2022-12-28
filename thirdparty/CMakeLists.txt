@@ -1,5 +1,8 @@
 include(FetchContent)
-FetchContent_Declare(
+
+# Set defaults preventing destination file conflicts
+set(SDL_CMAKE_DEBUG_POSTFIX "")
+FetchContent_Populate(
   sdl
   GIT_REPOSITORY https://github.com/libsdl-org/SDL
   GIT_TAG release-2.0.22
@@ -11,7 +14,7 @@ FetchContent_Declare(
 
 set(SDL2TTF_VENDORED ON)
 
-FetchContent_Declare(
+FetchContent_Populate(
   sdl_ttf
   GIT_REPOSITORY https://github.com/libsdl-org/SDL_ttf
   GIT_TAG release-2.20.1
@@ -21,11 +24,12 @@ set(BUILD_SHARED_LIBS OFF)
 set(GLFW_BUILD_EXAMPLES OFF)
 set(GLFW_BUILD_TESTS OFF)
 set(GLFW_BUILD_DOCS OFF)
-FetchContent_Declare(
+FetchContent_Populate(
   glfw
   GIT_REPOSITORY https://github.com/glfw/glfw.git
   GIT_TAG 3.3.8)
-FetchContent_MakeAvailable(sdl sdl_ttf glfw)
+# FetchContent_MakeAvailable(sdl sdl_ttf glfw)
+subdirs(${sdl_SOURCE_DIR} ${sdl_ttf_SOURCE_DIR} ${glfw_SOURCE_DIR})
 
 FetchContent_Populate(
   vterm URL https://www.leonerd.org.uk/code/libvterm/libvterm-0.3.tar.gz)
@@ -43,6 +47,7 @@ add_library(
   ${vterm_SOURCE_DIR}/src/vterm.c)
 target_include_directories(vterm PUBLIC ${vterm_SOURCE_DIR}/include
                                         ${CMAKE_CURRENT_LIST_DIR}/vterm_src)
+
 
 subdirs(SDL_fox)
 

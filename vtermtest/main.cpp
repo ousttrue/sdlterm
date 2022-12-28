@@ -1,5 +1,3 @@
-#include "vterm.h"
-#include "vtermtest.h"
 #include <SDL_pixels.h>
 #include <SDL_surface.h>
 #include <SDL_ttf.h>
@@ -10,6 +8,7 @@
 
 #include <childprocess.h>
 #include <sdl_app.h>
+#include <vterm_object.h>
 
 #ifdef _MSC_VER
 auto FONT_FILE = "C:/Windows/Fonts/consola.ttf";
@@ -87,7 +86,7 @@ int main(int argc, char **argv) {
   termtk::ChildProcess child;
   child.Launch(rows, cols, SHELL, {"-"});
 
-  Terminal terminal(rows, cols, font_width, font_height,
+  termtk::Terminal terminal(rows, cols, font_width, font_height,
                     &termtk::ChildProcess::Write, &child);
 
   auto cellSurface = [font](const VTermScreenCell &cell,

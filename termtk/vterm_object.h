@@ -5,48 +5,21 @@
 #include <unordered_set>
 #include <vterm.h>
 
+template <> struct ::std::hash<VTermPos> {
+  std::size_t operator()(const VTermPos &p) const noexcept {
+    return p.row << 16 | p.col;
+  }
+};
+
+namespace termtk {
 struct PosEqual {
   constexpr bool operator()(VTermPos lhs, VTermPos rhs) const {
     return lhs.row == rhs.row && lhs.col == rhs.col;
   }
 };
-namespace detail // 便利ライブラリを置く名前空間（名前は任意）
-{
-// 複数のハッシュ値を組み合わせて新しいハッシュ値を作る関数
-// 実装出典: Boost.ContainerHash
-// https://github.com/boostorg/container_hash/blob/develop/include/boost/container_hash/hash.hpp
-inline void HashCombineImpl(std::size_t &h, std::size_t k) noexcept {
-  static_assert(sizeof(std::size_t) == 8); // 要 64-bit 環境
-  constexpr std::uint64_t m = 0xc6a4a7935bd1e995;
-  constexpr int r = 47;
-  k *= m;
-  k ^= k >> r;
-  k *= m;
-  h ^= k;
-  h *= m;
-  // Completely arbitrary number, to prevent 0's
-  // from hashing to 0.
-  h += 0xe6546b64;
-}
 
-// 複数のハッシュ値を組み合わせて新しいハッシュ値を作る関数
-template <class Type>
-inline void HashCombine(std::size_t &h, const Type &value) noexcept {
-  HashCombineImpl(h, std::hash<Type>{}(value));
-}
-} // namespace detail
-template <>
-struct std::hash<VTermPos> // std::hash の特殊化
-{
-  std::size_t operator()(const VTermPos &p) const noexcept {
-    std::size_t seed = 0;
-    detail::HashCombine(seed, p.row); // ハッシュ値を更新
-    detail::HashCombine(seed, p.col); // ハッシュ値を更新
-    return seed;
-  }
-};
+using PosSet = std::unordered_set<::VTermPos, std::hash<::VTermPos>, PosEqual>;
 
-using PosSet = std::unordered_set<VTermPos, std::hash<VTermPos>, PosEqual>;
 class Terminal {
   VTerm *vterm_;
   VTermScreen *screen_;
@@ -90,3 +63,4 @@ private:
   int sb_pushline(int cols, const VTermScreenCell *cells);
   int sb_popline(int cols, VTermScreenCell *cells);
 };
+} // namespace termtk
