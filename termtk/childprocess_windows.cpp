@@ -4,6 +4,7 @@
 #include <iostream>
 #include <mutex>
 #include <process.h>
+#include <span>
 #include <stdexcept>
 #include <string.h>
 #include <winerror.h>
@@ -23,7 +24,7 @@ struct ChildProcessImpl {
 
   std::vector<char> buffer_;
   std::mutex mtx_;
-  char buf_[8192];
+  std::vector<char> tmp_;
 
   void Shutdown() {
     // Now safe to clean-up client app's process-info & thread
@@ -138,25 +139,19 @@ struct ChildProcessImpl {
     if (len == 0) {
       return;
     }
+
     std::lock_guard<std::mutex> lock(mtx_);
     auto size = buffer_.size();
     buffer_.resize(size + len);
     memcpy(buffer_.data() + size, buf, len);
+
+    // std::cout << "Enqueue>>" << std::string_view(buf, len) << std::endl;
   }
 
-  DWORD Dequeue(char *buf, size_t len) {
+  auto Dequeue(std::vector<char> &buffer) {
     std::lock_guard<std::mutex> lock(mtx_);
-    if (len < buffer_.size()) {
-      memcpy(buf, buffer_.data(), len);
-      memmove(buffer_.data(), buffer_.data() + len, buffer_.size() - len);
-      buffer_.resize(buffer_.size() - len);
-      return len;
-    } else {
-      auto size = std::min(len, buffer_.size());
-      memcpy(buf, buffer_.data(), size);
-      buffer_.resize(0);
-      return size;
-    }
+    std::swap(buffer, buffer_);
+    buffer_.clear();
   }
 
   bool IsClosed() {
@@ -185,8 +180,8 @@ struct ChildProcessImpl {
   }
 
   std::span<char> Read() {
-    auto size = Dequeue(buf_, sizeof(buf_));
-    return {buf_, buf_ + size};
+    Dequeue(tmp_);
+    return {tmp_.begin(), tmp_.end()};
   }
 };
 
@@ -210,7 +205,7 @@ static void __cdecl PipeListener(LPVOID p) {
     // printf()/puts() to prevent partially-read VT sequences from corrupting
     // output
     // WriteFile(hConsole, szBuffer, dwBytesRead, &dwBytesWritten, NULL);
-    impl->Enqueue(szBuffer, BUFF_SIZE);
+    impl->Enqueue(szBuffer, dwBytesRead);
 
   } while (fRead && dwBytesRead >= 0);
 

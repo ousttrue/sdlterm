@@ -65,7 +65,7 @@ const PosSet &Terminal::new_frame(bool *ringing) {
   *ringing = ringing_;
   ringing_ = false;
 
-#if 0
+#if 1
   std::swap(damaged_, tmp_);
 #else
   tmp_.clear();
