@@ -23,6 +23,7 @@ struct ChildProcessImpl {
 
   std::vector<char> buffer_;
   std::mutex mtx_;
+  char buf_[8192];
 
   void Shutdown() {
     // Now safe to clean-up client app's process-info & thread
@@ -56,8 +57,8 @@ struct ChildProcessImpl {
       // CONSOLE_SCREEN_BUFFER_INFO csbi{};
       // HANDLE hConsole{GetStdHandle(STD_OUTPUT_HANDLE)};
       // if (GetConsoleScreenBufferInfo(hConsole, &csbi)) {
-        consoleSize.X = cols;
-        consoleSize.Y = rows;
+      consoleSize.X = cols;
+      consoleSize.Y = rows;
       // }
 
       // Create the Pseudo Console of the required size, attached to the PTY-end
@@ -157,6 +158,36 @@ struct ChildProcessImpl {
       return size;
     }
   }
+
+  bool IsClosed() {
+    auto result = WaitForSingleObject(piClient_.hThread, 0);
+    return result == WAIT_OBJECT_0;
+  }
+
+  void Kill() { TerminateProcess(piClient_.hProcess, 9); }
+
+  void Write(const char *buf, size_t size) {
+    DWORD write_size;
+    WriteFile(hPipeOut_, buf, size, &write_size, NULL);
+  }
+
+  void NotifyTermSize(unsigned short rows, unsigned short cols) {
+    // Retrieve width and height dimensions of display in
+    // characters using theoretical height/width functions
+    // that can retrieve the properties from the display
+    // attached to the event.
+    COORD size;
+    size.X = cols;
+    size.Y = rows;
+
+    // Call pseudoconsole API to inform buffer dimension update
+    ResizePseudoConsole(hpc_, size);
+  }
+
+  std::span<char> Read() {
+    auto size = Dequeue(buf_, sizeof(buf_));
+    return {buf_, buf_ + size};
+  }
 };
 
 static void __cdecl PipeListener(LPVOID p) {
@@ -214,34 +245,14 @@ void ChildProcess::Launch(int rows, int cols, const char *prog,
   }
 }
 
-bool ChildProcess::IsClosed() {
-  auto result = WaitForSingleObject(impl_->piClient_.hThread, 0);
-  return result == WAIT_OBJECT_0;
-}
-
-void ChildProcess::Kill() { TerminateProcess(impl_->piClient_.hProcess, 9); }
-
+bool ChildProcess::IsClosed() { return impl_->IsClosed(); }
+void ChildProcess::Kill() { impl_->Kill(); }
 void ChildProcess::Write(const char *buf, size_t size) {
-  DWORD write_size;
-  WriteFile(impl_->hPipeOut_, buf, size, &write_size, NULL);
+  impl_->Write(buf, size);
 }
-
 void ChildProcess::NotifyTermSize(unsigned short rows, unsigned short cols) {
-  // Retrieve width and height dimensions of display in
-  // characters using theoretical height/width functions
-  // that can retrieve the properties from the display
-  // attached to the event.
-  COORD size;
-  size.X = cols;
-  size.Y = rows;
-
-  // Call pseudoconsole API to inform buffer dimension update
-  ResizePseudoConsole(impl_->hpc_, size);
+  impl_->NotifyTermSize(rows, cols);
 }
-
-std::span<char> ChildProcess::Read() {
-  auto size = impl_->Dequeue(buf_, sizeof(buf_));
-  return {buf_, buf_ + size};
-}
+std::span<char> ChildProcess::Read() { return impl_->Read(); }
 
 } // namespace termtk
