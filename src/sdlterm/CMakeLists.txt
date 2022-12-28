@@ -1,6 +1,5 @@
 set(TARGET_NAME sdlterm)
-add_executable(${TARGET_NAME} main.cpp sdlrenderer.cpp vtermapp.cpp
-                              term_config.cpp)
+add_executable(${TARGET_NAME} main.cpp sdlrenderer.cpp term_config.cpp)
 target_link_libraries(
   ${TARGET_NAME}
   PRIVATE SDL2

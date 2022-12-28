@@ -1,11 +1,10 @@
 #include "sdlrenderer.h"
 #include "term_config.h"
-#include "vterm.h"
-#include "vtermapp.h"
 #include <iostream>
 
 #include <childprocess.h>
 #include <sdl_app.h>
+#include <vterm_object.h>
 
 int main(int argc, char *argv[]) {
   TERM_Config cfg = {};
@@ -26,21 +25,17 @@ int main(int argc, char *argv[]) {
   if (!renderer->LoadFont(cfg.font, cfg.fontsize, cfg.boldfont)) {
     return 4;
   }
-  int rows = window->Height() / renderer->font_metrics->height;
-  int cols = window->Width() / renderer->font_metrics->max_advance;
-
-  VTermApp vterm;
-  vterm.Initialize(rows, cols);
-
-  // vterm -> window
-  vterm.BellCallback = std::bind(&SDLRenderer::SetBell, renderer.get());
-  vterm.MoveCursorCallback =
-      std::bind(&SDLRenderer::MoveCursor, renderer.get(), std::placeholders::_1,
-                std::placeholders::_2, std::placeholders::_3);
+  int font_width = renderer->font_metrics->max_advance;
+  int font_height = renderer->font_metrics->height;
+  int rows = window->Height() / font_height;
+  int cols = window->Width() / font_width;
 
   // child
   termtk::ChildProcess child;
   child.Launch(rows, cols, cfg.exec);
+
+  termtk::Terminal vterm(rows, cols, font_width, font_height,
+                         &termtk::ChildProcess::Write, &child);
 
   while (app.NewFrame()) {
     if (child.IsClosed()) {
@@ -50,7 +45,7 @@ int main(int argc, char *argv[]) {
     {
       auto input = child.Read();
       if (!input.empty()) {
-        vterm.Write(input.data(), input.size());
+        vterm.input_write(input.data(), input.size());
         renderer->SetDirty();
       }
     }
@@ -68,7 +63,7 @@ int main(int argc, char *argv[]) {
       rows = new_rows;
       cols = new_cols;
       std::cout << "rows x cols: " << rows << " x " << cols << std::endl;
-      vterm.Resize(rows, cols);
+      vterm.set_rows_cols(rows, cols);
       child.NotifyTermSize(rows, cols);
       renderer->SetDirty();
     }
@@ -82,7 +77,7 @@ int main(int argc, char *argv[]) {
               .row = y,
               .col = x,
           };
-          if (auto cell = vterm.Cell(pos)) {
+          if (auto cell = vterm.get_cell(pos)) {
             renderer->RenderCell(pos, *cell);
           }
         }

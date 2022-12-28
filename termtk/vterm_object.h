@@ -40,6 +40,7 @@ public:
   const PosSet &new_frame(bool *ringing);
   VTermScreenCell *get_cell(VTermPos pos) const;
   VTermScreenCell *get_cursor(VTermPos *pos) const;
+  void set_rows_cols(int rows, int cols);
 
 private:
   static int damage(VTermRect rect, void *user);

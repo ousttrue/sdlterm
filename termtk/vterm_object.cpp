@@ -1,4 +1,5 @@
 #include "vterm_object.h"
+#include "vterm.h"
 #include <iostream>
 #include <string.h>
 
@@ -101,6 +102,10 @@ VTermScreenCell *Terminal::get_cursor(VTermPos *pos) const {
   *pos = cursor_pos_;
   vterm_screen_get_cell(screen_, cursor_pos_, &cell_);
   return &cell_;
+}
+
+void Terminal::set_rows_cols(int rows, int cols) {
+  vterm_set_size(vterm_, rows, cols);
 }
 
 int Terminal::damage(int start_row, int start_col, int end_row, int end_col) {
