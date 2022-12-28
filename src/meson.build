@@ -1,3 +1,3 @@
-# subdir('sdlterm')
+subdir('sdlterm')
 subdir('vtermtest')
 subdir('fondtest')

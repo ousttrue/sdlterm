@@ -1,7 +1,8 @@
+#include "SDL_fox.h"
 #include "sdlrenderer.h"
 #include "term_config.h"
 #include <iostream>
-
+// #include <SDL_fox.h>
 #include <childprocess.h>
 #include <sdl_app.h>
 #include <vterm_object.h>
@@ -17,6 +18,8 @@ int main(int argc, char *argv[]) {
   if (!window) {
     return 2;
   }
+
+  FOX_Init();
 
   auto renderer = SDLRenderer::Create(window->Handle());
   if (!renderer) {
@@ -85,6 +88,8 @@ int main(int argc, char *argv[]) {
     }
     renderer->EndRender(render_screen, cfg.width, cfg.height);
   }
+
+  FOX_Exit();
 
   return 0;
 }

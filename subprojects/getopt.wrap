@@ -1,0 +1,8 @@
+[wrap-git]
+url = https://github.com/takamin/win-c
+revision = v1.0
+depth = 1
+patch_directory = getopt
+
+[provide]
+getopt = getopt_dep
