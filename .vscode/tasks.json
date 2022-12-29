@@ -19,9 +19,22 @@
             "label": "build",
             "type": "shell",
             "command": "meson install -C build",
-            "problemMatcher": [
-                "$msCompile"
-            ],
+            "problemMatcher": {
+                "owner": "meson-msvc",
+                "fileLocation": [
+                    "relative",
+                    "${workspaceFolder}/build",
+                ],
+                "pattern": {
+                    "kind": "location",
+                    "regexp": "^(.*)\\((\\d+)\\): (\\w+) (\\w+): (.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "severity": 3,
+                    "code": 4,
+                    "message": 5,
+                }
+            },
         },
     ]
 }

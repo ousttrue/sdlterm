@@ -77,7 +77,7 @@ extern "C" {
   // See fond_compute_extent_u
   struct fond_font{
     // Path to the TTF file.
-    char *file;
+    const char *file;
     // The index of the font within the TTF file.
     // You probably don't need to set this.
     int index;
