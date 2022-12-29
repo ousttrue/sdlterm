@@ -1,3 +1,7 @@
-executable('fondtest', 'main.cpp',
+executable('fondtest', [
+    'main.cpp',
+    'quad.cpp',
+    'text.cpp',
+],
 dependencies: [glew_dep, glfw_dep, fond_dep],
 install: true)
