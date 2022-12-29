@@ -2,7 +2,6 @@ fond_inc = include_directories('src')
 fond = static_library('fond', [
     'src/fond.c',
     'src/fond_common.c',
-    'src/fond_buffer.c',
     'src/fond_windows.c',
 ],
 include_directories: [fond_inc])

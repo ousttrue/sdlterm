@@ -1,24 +1,25 @@
 #include "text.h"
+#include <fond.h>
 #include <GL/glew.h>
 #include <stdio.h>
 
 TextTexture::TextTexture(struct fond_font *font, const fond_extent &extent) : y(extent.t) {
   buffer.font = font;
-  fond_free_buffer(&buffer);
+  buffer.fond_free_buffer();
 }
 
 bool TextTexture::Load(const char *vs, const char *fs) {
   buffer.width = 800;
   buffer.height = 600;
   printf("Loading buffer... ");
-  if (!fond_load_buffer(&buffer, vs, fs)) {
+  if (!buffer.fond_load_buffer(vs, fs)) {
     printf("Error: %s\n", fond_error_string(fond_error()));
     return false;
   }
   printf("DONE\n");
 
   printf("Rendering buffer... ");
-  if (!fond_render(&buffer, "Type it", 0, 100, 0)) {
+  if (!buffer.fond_render("Type it", 0, 100, 0)) {
     printf("Error: %s\n", fond_error_string(fond_error()));
     return false;
   }
@@ -30,7 +31,7 @@ bool TextTexture::Load(const char *vs, const char *fs) {
 void TextTexture::Bind() { glBindTexture(GL_TEXTURE_2D, buffer.texture); }
 
 bool TextTexture::render_text() {
-  if (!fond_render_u(&buffer, text, pos, 0, y, 0)) {
+  if (!buffer.fond_render_u(text, pos, 0, y, 0)) {
     printf("Failed to render: %s\n", fond_error_string(fond_error()));
     return 0;
   }

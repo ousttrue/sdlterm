@@ -69,19 +69,6 @@ FOND_EXPORT int fond_compute_extent(struct fond_font *font, char *text, struct f
   return (errorcode == FOND_NO_ERROR);
 }
 
-FOND_EXPORT int fond_render(struct fond_buffer *buffer, const char *text, float x, float y, float *color){
-  size_t size = 0;
-  int32_t *codepoints = 0;
-  
-  if(!fond_decode_utf8((void *)text, &codepoints, &size)){
-    return 0;
-  }
-
-  fond_render_u(buffer, codepoints, size, x, y, color);
-  free(codepoints);
-  return (errorcode == FOND_NO_ERROR);
-}
-
 int fond_load_file(char *file, void **pointer){
   FILE *fd = fopen(file, "rb");
   if(!fd) return 0;
@@ -101,7 +88,7 @@ int fond_load_file(char *file, void **pointer){
   return 1;
 }
 
-void fond_err(int code){
+FOND_EXPORT void fond_err(int code){
   errorcode = code;
 }
 
@@ -130,36 +117,10 @@ char *glErrorString(GLint err){
   }
 }
 
-int fond_check_glerror(){
+FOND_EXPORT int fond_check_glerror(){
   GLint err = glGetError();
   if(err != GL_NO_ERROR){
     fprintf(stderr, "\nFond: OpenGL error %i: %s\n", err, glErrorString(err));
-    return 0;
-  }
-  return 1;
-}
-
-int fond_check_shader(GLuint shader){
-  GLint res = 0;
-  glGetShaderiv(shader, GL_COMPILE_STATUS, &res);
-  if(res == GL_FALSE){
-    GLint length = 0;
-    GLchar error[GL_INFO_LOG_LENGTH];
-    glGetShaderInfoLog(shader, length, &length, &error[0]);
-    fprintf(stderr, "\nFond: GLSL error: %s\n", error);
-    return 0;
-  }
-  return 1;
-}
-
-int fond_check_program(GLuint program){
-  GLint res = 0;
-  glGetProgramiv(program, GL_LINK_STATUS, &res);
-  if(res == GL_FALSE){
-    GLint length = 0;
-    GLchar error[GL_INFO_LOG_LENGTH];
-    glGetProgramInfoLog(program, length, &length, &error[0]);
-    fprintf(stderr, "\nFond: GLSL error: %s\n", error);
     return 0;
   }
   return 1;
