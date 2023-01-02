@@ -1,12 +1,8 @@
 #include "quad.h"
 #include "text.h"
-#include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <fond.h>
-#include <fstream>
-#include <stdint.h>
 #include <stdio.h>
-#include <vector>
 
 struct FontAtlas {
   struct fond_font font = {0};
@@ -38,17 +34,17 @@ struct FontAtlas {
 };
 
 void character_callback(GLFWwindow *window, unsigned int codepoint) {
-  auto data = (TextTexture *)glfwGetWindowUserPointer(window);
-  data->push(codepoint);
+  auto text = (TextTexture *)glfwGetWindowUserPointer(window);
+  text->Push(codepoint);
 }
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action,
                   int mode) {
-  auto data = (TextTexture *)glfwGetWindowUserPointer(window);
+  auto text = (TextTexture *)glfwGetWindowUserPointer(window);
   if (action == GLFW_RELEASE) {
     switch (key) {
     case GLFW_KEY_BACKSPACE:
-      data->pop();
+      text->Pop();
       break;
     case GLFW_KEY_ENTER:
       character_callback(window, '\n');
@@ -58,15 +54,6 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action,
       break;
     }
   }
-}
-
-static std::vector<char> ReadAllBytes(char const *filename) {
-  std::ifstream ifs(filename, std::ios::binary | std::ios::ate);
-  auto pos = ifs.tellg();
-  std::vector<char> buffer(pos);
-  ifs.seekg(0, std::ios::beg);
-  ifs.read(buffer.data(), pos);
-  return buffer;
 }
 
 class App {
@@ -104,20 +91,10 @@ public:
 };
 
 int main(int argc, char **argv) {
-  if (argc < 4) {
+  if (argc < 2) {
     printf("Please specify a TTF file to load.\n");
     return 1;
   }
-  auto vs = ReadAllBytes(argv[2]);
-  if (vs.empty()) {
-    return 2;
-  }
-  vs.push_back(0);
-  auto fs = ReadAllBytes(argv[3]);
-  if (fs.empty()) {
-    return 3;
-  }
-  fs.push_back(0);
 
   printf("Initializing GL... ");
   App app;
@@ -142,7 +119,7 @@ int main(int argc, char **argv) {
   }
 
   TextTexture text(&font.font, *extent);
-  if (!text.Load(vs.data(), fs.data())) {
+  if (!text.Initialize(800, 600)) {
     return 8;
   }
   glfwSetWindowUserPointer(window, &text);

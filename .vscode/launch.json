@@ -35,8 +35,6 @@
             "program": "${workspaceFolder}/prefix/bin/fondtest.exe",
             "args": [
                 "${env:HOME}/.fonts/HackGenNerdConsole-Regular.ttf",
-                "thirdparty/libfond/src/shader/to_texture.vert",
-                "thirdparty/libfond/src/shader/to_texture.frag",
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
